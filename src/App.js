@@ -90,14 +90,14 @@ const App = () => {
     ).toHex()
     const act = await createAction({
       description: 'unlock',
-      // Need custom nLockTime support
+      lockTime: instructions.height,
       inputs: {
         [outputs[0].txid]: {
           ...outputs[0].envelope,
           outputsToRedeem: [{
             index: outputs[0].vout,
-            unlockingScript: script
-            // Need custom sequence number support (sequence=3301)
+            unlockingScript: script,
+            sequenceNumber: 3301
           }]
         }
       }
