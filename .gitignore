@@ -1,0 +1,42 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+/artifacts
+scrypt.index.json
+
+/src/contracts/zkBattleship.json
+
+/circuits/*.key
+/circuits/*.json
+/circuits/*.hex
+/circuits/witness
+/circuits/out*
+/circuits/verifier
+
+/circuits/*.zkey
+/circuits/*.ptau
+/circuits/*.r1cs
+/circuits/battleship_js
+
+/public/zk/
