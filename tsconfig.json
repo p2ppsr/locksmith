@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+      "target": "es5",
+      "module": "commonjs",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true
+    },
+    "include": [
+        "node_modules/babbage-scrypt-p2pkh/deploy.ts",
+        "/**/types/whatsonchain.d.ts"
+    ],
+    "exclude": ["node_modules"]  
+}

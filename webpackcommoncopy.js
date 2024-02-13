@@ -26,8 +26,15 @@ module.exports = {
       ],
     }),
   ],
+
   module: {
-      rules: [
+    rules: [
+      {
+        test: /\.tsx?$/,
+        exclude: /node_modules/,
+        use: 'ts-loader',
+      },  module: {
+    rules: [
       {
         test: /\.(js|jsx|ts|tsx)$/,
         exclude: /node_modules/,

@@ -1,18 +1,19 @@
-const { merge } = require('webpack-merge')
-const common = require('./webpack.common.js')
+const { merge } = require('webpack-merge');
+const path = require('path');  // Add this line
+const common = require('./webpack.common.js');
 
 module.exports = merge(common, {
   mode: 'development',
   devServer: {
     open: true,
-    port: 8088, // you can change the port
+    port: 8088,
     client: {
-      overlay: true // Show application errors
+      overlay: true,
     },
     historyApiFallback: {
-      index: 'index.html'
+      index: 'index.html',
     },
-    static: './public'
+    static: './public',
   },
-  devtool: 'inline-source-map'
-})
+  devtool: 'inline-source-map',
+});
