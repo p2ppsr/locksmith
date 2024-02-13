@@ -1,13 +1,17 @@
 import React, { useState } from 'react'
 import TextField from '@mui/material/TextField'
 import { lock, unlock } from './deploy'
+import ReactDOM from 'react-dom'
 
 export const App: React.FC = () => {
   const [satoshis, setSatoshis] = useState('')
   const [lockBlockCount, setLockBlockCount] = useState('')
 
   const handleClick = async () => {
-    await lock(satoshis, lockBlockCount)
+    // await lock(
+    //   Number(satoshis),
+    //   Number(lockBlockCount)
+    // )
     await unlock()
   }
 
@@ -15,7 +19,8 @@ export const App: React.FC = () => {
     <center style={{ margin: '1em' }}>
 
       <TextField
-        type='number' min={1000} autoFocus
+        type='number'
+        autoFocus
         label='satoshis:'
         value={satoshis}
         onChange={e => {
@@ -23,7 +28,7 @@ export const App: React.FC = () => {
         }}
       />
       <TextField
-        type='number' min={1}
+        type='number'
         label='how many blocks to lock for:'
         value={lockBlockCount}
         onChange={e => {
@@ -35,9 +40,7 @@ export const App: React.FC = () => {
   )
 }
 
-const root = ReactDOM.createRoot(
+ReactDOM.render(
+  <App />,
   document.getElementById('root') as HTMLElement
-);
-root.render(
-  <App />
-);
+)

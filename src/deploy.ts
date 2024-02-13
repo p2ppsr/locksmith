@@ -5,14 +5,14 @@ import { deployContract, listContracts, redeemContract } from 'babbage-scrypt-he
 import { getPublicKey, createSignature } from '@babbage/sdk-ts'
 import crypto from 'crypto'
 import Whatsonchain from 'whatsonchain'
-const BASKET_ID = 'hlloolocks1'
+const BASKET_ID = 'hlloolocks3'
 const PROTOCOL_ID = 'hlloolocks'
 
 // This locks the passed number of sats for the passed number of blocks
 export const lock = async (satoshis: number, lockBlockCount: number) => {
-    if (lockBlockCount < 1) {
-        throw new Error('You need to lock to a future block not the current block')
-    }
+    // if (lockBlockCount < 1) {
+    //     throw new Error('You need to lock to a future block not the current block')
+    // }
     if (satoshis < 1000) {
         throw new Error('You need to lock at least 1000 satoshis')
     }
@@ -44,6 +44,7 @@ export const lock = async (satoshis: number, lockBlockCount: number) => {
 
 // This function just redeems the sats associated with a single lock, being the most recent in the contracts listing
 export const unlock = async () => {
+    Demo.loadArtifact(artifact)
     let i: number = 0
 
     await new Promise<void>((resolve) => {
@@ -58,7 +59,7 @@ export const unlock = async () => {
             const customInstructions = customInstructionsStr.split(',')
             console.log('customInstructions', customInstructions)
             const keyID = customInstructions[0]
-            const lockBlockHeight = customInstructions[1]
+            const lockBlockHeight = Number(customInstructions[1])
             const woc = new Whatsonchain('testnet')
             console.log('redeem():min:', i)
             const result = await woc.chainInfo()
@@ -67,68 +68,75 @@ export const unlock = async () => {
 
             if (currentBlockHeight < lockBlockHeight) {
                 setTimeout(redeem, 60000)
-            } else {
-                const redeemHydrator = async (self: SmartContract): Promise<void> => {
-                    const instance = self as Demo
-                    const bsvtx = new bsv.Transaction()
-                    bsvtx.from({
-                        txId: contracts[0].txid,
-                        outputIndex: contracts[0].vout,
-                        script: contracts[0].outputScript,
-                        satoshis: contracts[0].amount,
-                    })
+                return
+            }
+            const redeemHydrator = async (self: SmartContract): Promise<void> => {
+                const instance = self as Demo
+                const bsvtx = new bsv.Transaction()
+                bsvtx.from({
+                    txId: contracts[0].txid,
+                    outputIndex: contracts[0].vout,
+                    script: contracts[0].outputScript,
+                    satoshis: contracts[0].amount
+                })
+                bsvtx.inputs[0].sequenceNumber = 0xfffffffe
+                bsvtx.nLockTime = lockBlockHeight
 
-                    const hashType =
-                        bsv.crypto.Signature.SIGHASH_NONE |
-                        bsv.crypto.Signature.SIGHASH_ANYONECANPAY |
-                        bsv.crypto.Signature.SIGHASH_FORKID
+                const hashType =
+                    bsv.crypto.Signature.SIGHASH_NONE |
+                    bsv.crypto.Signature.SIGHASH_ANYONECANPAY |
+                    bsv.crypto.Signature.SIGHASH_FORKID
 
-                    const hashbuf = bsv.crypto.Hash.sha256(
-                        bsv.Transaction.Sighash.sighashPreimage(
-                            bsvtx,
-                            hashType,
-                            0,
-                            bsv.Script.fromBuffer(Buffer.from(contracts[0].outputScript, 'hex')),
-                            new bsv.crypto.BN(parseInt(String(contracts[0].amount)))
-                        )
-                    )
-                    const SDKSignature = await createSignature({
-                        protocolID: PROTOCOL_ID,
-                        keyID,
-                        data: hashbuf,
-                    })
+                debugger
+                const preimage = bsv.Transaction.Sighash.sighashPreimage(
+                    bsvtx,
+                    hashType,
+                    0,
+                    bsv.Script.fromBuffer(Buffer.from(contracts[0].outputScript, 'hex')),
+                    new bsv.crypto.BN(parseInt(String(contracts[0].amount)))
+                )
+                console.log('preimage=', preimage)
+                const hashbuf = bsv.crypto.Hash.sha256(
+                    preimage
+                )
+                const SDKSignature = await createSignature({
+                    protocolID: PROTOCOL_ID,
+                    keyID,
+                    data: hashbuf
+                })
 
-                    const signature = bsv.crypto.Signature.fromString(
-                        Buffer.from(SDKSignature).toString('hex')
-                    )
-
-                    signature.nhashtype = hashType
-
-                    self.to = {
-                        tx: bsvtx,
-                        inputIndex: 0,
-                    }
-
-                    const publicKey = await getPublicKey({
-                        protocolID: PROTOCOL_ID,
-                        keyID,
-                    })
-
-                    instance.unlock(
-                        Sig(toByteString(signature.toTxFormat().toString('hex'))),
-                        PubKey(toByteString(publicKey))
-                    )
-                }
-
-                const redeemTX = await redeemContract(
-                    contracts[0],
-                    redeemHydrator,
-                    'Redeem a loolocks smart contract'
+                const signature = bsv.crypto.Signature.fromString(
+                    Buffer.from(SDKSignature).toString('hex')
                 )
 
-                console.log('REDEEMED!!', redeemTX.txid)
-                resolve()
+                signature.nhashtype = hashType
+
+                self.to = {
+                    tx: bsvtx,
+                    inputIndex: 0,
+                }
+
+                const publicKey = await getPublicKey({
+                    protocolID: PROTOCOL_ID,
+                    keyID,
+                })
+
+                instance.unlock(
+                    Sig(toByteString(signature.toTxFormat().toString('hex'))),
+                    PubKey(toByteString(publicKey))
+                )
             }
+
+            const redeemTX = await redeemContract(
+                contracts[0],
+                redeemHydrator,
+                'Redeem a loolocks smart contract',
+                lockBlockHeight,
+                0xfffffffe
+            )
+
+            console.log('REDEEMED!!', redeemTX.txid)
+            resolve()
         }
 
         redeem()
@@ -228,11 +236,3 @@ const redeemLoolocks = async () => {
         await redeemContracts(BASKET_ID, PROTOCOL_ID)
     }, 60000)
 }
-
-// Main function where the lock, unlock or redeem functions are called
-const main = async () => {
-    console.log('main()')
-    await lock(1000, 1)
-    await redeemLoolocks()
-}
-main()

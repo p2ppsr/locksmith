@@ -7,6 +7,7 @@ import {
     pubKey2Addr,
     Sig,
     SmartContract,
+    SigHash
 } from 'scrypt-ts'
 
 /*
@@ -32,7 +33,7 @@ export class P2PKH extends SmartContract {
         console.log('Demo:address:', address)
     }
 
-    @method()
+    @method(SigHash.ANYONECANPAY_NONE)
     public unlock(sig: Sig, pubKey: PubKey) {
         console.log('Demo:this.ctx.locktime:', this.ctx.locktime)
         console.log('Demo:this.ctx.sequence:', this.ctx.sequence)
