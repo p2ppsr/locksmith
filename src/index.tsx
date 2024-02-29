@@ -8,10 +8,10 @@ export const App: React.FC = () => {
   const [lockBlockCount, setLockBlockCount] = useState('')
 
   const handleClick = async () => {
-    // await lock(
-    //   Number(satoshis),
-    //   Number(lockBlockCount)
-    // )
+    await lock(
+      Number(satoshis),
+      Number(lockBlockCount)
+    )
     await unlock()
   }
 

@@ -5,11 +5,12 @@ import { deployContract, listContracts, redeemContract } from 'babbage-scrypt-he
 import { getPublicKey, createSignature } from '@babbage/sdk-ts'
 import crypto from 'crypto'
 import Whatsonchain from 'whatsonchain'
-const BASKET_ID = 'hlloolocks3'
+const BASKET_ID = 'hlloolocks10'
 const PROTOCOL_ID = 'hlloolocks'
 
 // This locks the passed number of sats for the passed number of blocks
-export const lock = async (satoshis: number, lockBlockCount: number) => {
+export const lock = async (satoshis:
+    number, lockBlockCount: number) => {
     // if (lockBlockCount < 1) {
     //     throw new Error('You need to lock to a future block not the current block')
     // }
@@ -29,7 +30,17 @@ export const lock = async (satoshis: number, lockBlockCount: number) => {
     })
     console.log('called getPublicKey()')
     const address = bsv.PublicKey.fromString(publicKey).toAddress()
-    const instance = new Demo(Addr(address.toByteString()), BigInt(satoshis), BigInt(lockBlockHeight))
+    const instance = new Demo(Addr(address.toByteString()), BigInt(lockBlockHeight))
+
+    // const ls = instance.lockingScript.toHex()
+    // console.log('ls', ls)
+    // const instance2 = Demo.fromLockingScript(ls)
+    // const ls2 = instance2.lockingScript.toHex()
+    // console.log('ls2', ls2)
+    // console.log('ls eq', ls === ls2)
+    // console.log('i1', instance)
+    // console.log('i2', instance2)
+    // console.log('i eq', instance === instance2)
 
     const deployTX = await deployContract(
         instance,
@@ -70,13 +81,21 @@ export const unlock = async () => {
                 setTimeout(redeem, 60000)
                 return
             }
+
+            const fromTx = new bsv.Transaction(contracts[0].envelope.rawTx)
+
+            contracts[0].contract.from = {
+                tx: fromTx,
+                outputIndex: contracts[0].vout
+            }
+
             const redeemHydrator = async (self: SmartContract): Promise<void> => {
                 const instance = self as Demo
                 const bsvtx = new bsv.Transaction()
                 bsvtx.from({
                     txId: contracts[0].txid,
                     outputIndex: contracts[0].vout,
-                    script: contracts[0].outputScript,
+                    script: fromTx.outputs[contracts[0].vout].script.toHex(),
                     satoshis: contracts[0].amount
                 })
                 bsvtx.inputs[0].sequenceNumber = 0xfffffffe
@@ -87,12 +106,11 @@ export const unlock = async () => {
                     bsv.crypto.Signature.SIGHASH_ANYONECANPAY |
                     bsv.crypto.Signature.SIGHASH_FORKID
 
-                debugger
                 const preimage = bsv.Transaction.Sighash.sighashPreimage(
                     bsvtx,
                     hashType,
                     0,
-                    bsv.Script.fromBuffer(Buffer.from(contracts[0].outputScript, 'hex')),
+                    fromTx.outputs[contracts[0].vout].script,
                     new bsv.crypto.BN(parseInt(String(contracts[0].amount)))
                 )
                 console.log('preimage=', preimage)
@@ -110,6 +128,11 @@ export const unlock = async () => {
                 )
 
                 signature.nhashtype = hashType
+
+                self.from = {
+                    tx: new bsv.Transaction(contracts[0].envelope.rawTx),
+                    outputIndex: contracts[0].vout
+                }
 
                 self.to = {
                     tx: bsvtx,
