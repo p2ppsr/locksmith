@@ -23,7 +23,7 @@ export class P2PKH extends SmartContract {
 
     constructor(address: Addr, lockUntilHeight: bigint) {
         super(...arguments)
-        // assert(lockUntilHeight < 500000000, 'must use blockHeight locktime')
+        assert(lockUntilHeight < 500000000, 'must use blockHeight locktime')
         this.address = address
         this.lockUntilHeight = lockUntilHeight
         console.log('Demo:address:', address)
@@ -33,7 +33,7 @@ export class P2PKH extends SmartContract {
     public unlock(sig: Sig, pubKey: PubKey) {
         console.log('Demo:this.ctx.locktime:', this.ctx.locktime)
         console.log('Demo:this.ctx.sequence:', this.ctx.sequence)
-        // assert(this.ctx.locktime < 500000000, 'must use blockHeight locktime')
+        assert(this.ctx.locktime < 500000000, 'must use blockHeight locktime')
         assert(this.ctx.sequence < BigInt(0xffffffff), 'must use sequence locktime')
         assert(
             this.ctx.locktime >= this.lockUntilHeight,

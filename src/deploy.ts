@@ -5,7 +5,7 @@ import { deployContract, listContracts, redeemContract } from 'babbage-scrypt-he
 import { getPublicKey, createSignature } from '@babbage/sdk-ts'
 import crypto from 'crypto'
 import Whatsonchain from 'whatsonchain'
-const BASKET_ID = 'hlloolocks10'
+const BASKET_ID = 'hlloolocks12'
 const PROTOCOL_ID = 'hlloolocks'
 
 // This locks the passed number of sats for the passed number of blocks
@@ -32,8 +32,9 @@ export const lock = async (satoshis:
     const address = bsv.PublicKey.fromString(publicKey).toAddress()
     const instance = new Demo(Addr(address.toByteString()), BigInt(lockBlockHeight))
 
-    // const ls = instance.lockingScript.toHex()
-    // console.log('ls', ls)
+    const ls = instance.lockingScript.toHex()
+    console.log('ls', ls)
+
     // const instance2 = Demo.fromLockingScript(ls)
     // const ls2 = instance2.lockingScript.toHex()
     // console.log('ls2', ls2)
@@ -143,6 +144,8 @@ export const unlock = async () => {
                     protocolID: PROTOCOL_ID,
                     keyID,
                 })
+
+                debugger
 
                 instance.unlock(
                     Sig(toByteString(signature.toTxFormat().toString('hex'))),
