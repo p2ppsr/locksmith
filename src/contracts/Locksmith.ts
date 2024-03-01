@@ -8,42 +8,43 @@ import {
     Sig,
     SmartContract,
     SigHash,
+    ByteString,
 } from 'scrypt-ts'
 
 /*
- * A simple Pay to Public Key Hash (P2PKH) contract.
+ * A contract to lock coins to a particular message.
  */
-export class P2PKH extends SmartContract {
-    // Address of the recipient.
+export class Locksmith extends SmartContract {
     @prop()
     readonly address: Addr
 
     @prop()
-    lockUntilHeight: bigint
+    readonly lockUntilHeight: bigint
 
-    constructor(address: Addr, lockUntilHeight: bigint) {
+    @prop()
+    readonly message: ByteString
+
+    constructor(address: Addr, lockUntilHeight: bigint, message: ByteString) {
         super(...arguments)
         assert(lockUntilHeight < 500000000, 'must use blockHeight locktime')
         this.address = address
         this.lockUntilHeight = lockUntilHeight
-        console.log('Demo:address:', address)
+        this.message = message
     }
 
+    // TODO: This SIGHASH type is non-ideal and should be improved for better security.
     @method(SigHash.ANYONECANPAY_NONE)
     public unlock(sig: Sig, pubKey: PubKey) {
-        console.log('Demo:this.ctx.locktime:', this.ctx.locktime)
-        console.log('Demo:this.ctx.sequence:', this.ctx.sequence)
         assert(this.ctx.locktime < 500000000, 'must use blockHeight locktime')
-        assert(this.ctx.sequence < BigInt(0xffffffff), 'must use sequence locktime')
+        assert(this.ctx.sequence == 0xfffffffen, 'must use sequence locktime')
         assert(
             this.ctx.locktime >= this.lockUntilHeight,
             'lockUntilHeight not reached'
-        ) // Check if the passed public key belongs to the specified address.
+        )
         assert(
             pubKey2Addr(pubKey) == this.address,
             'pubKey does not belong to address'
         )
-        // Check signature validity.
         assert(this.checkSig(sig, pubKey), 'signature check failed')
     }
 }
