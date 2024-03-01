@@ -23,7 +23,8 @@
     "whatsonchain": "^0.3.0"
   },
   "scripts": {
-    "start": "react-app-rewired start",
+    "compile": "scrypt-cli c",
+    "start": "npm run compile && react-app-rewired start",
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject"
@@ -49,6 +50,7 @@
   },
   "devDependencies": {
     "node-polyfill-webpack-plugin": "^2.0.1",
-    "react-app-rewired": "^2.2.1"
+    "react-app-rewired": "^2.2.1",
+    "scrypt-cli": "^0.1.71"
   }
 }

@@ -1,5 +1,5 @@
 import { Locksmith } from './contracts/Locksmith'
-import artifact from './contracts/Locksmith.json'
+import artifact from '../artifacts/Locksmith.json'
 import { bsv, SmartContract, Addr, Sig, PubKey, toByteString } from 'scrypt-ts'
 import { deployContract, listContracts, redeemContract } from 'babbage-scrypt-helpers'
 import { getPublicKey, createSignature } from '@babbage/sdk-ts'
