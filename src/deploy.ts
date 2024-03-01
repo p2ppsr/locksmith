@@ -5,7 +5,7 @@ import { deployContract, listContracts, redeemContract } from 'babbage-scrypt-he
 import { getPublicKey, createSignature } from '@babbage/sdk-ts'
 import crypto from 'crypto'
 import Whatsonchain from 'whatsonchain'
-const BASKET_ID = 'hlloolocks12'
+const BASKET_ID = 'hlloolocks13'
 const PROTOCOL_ID = 'hlloolocks'
 
 // This locks the passed number of sats for the passed number of blocks
