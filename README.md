@@ -1,25 +1,31 @@
-# Battleship
+# Locksmith
+
+Lock your BSV and unlock automatically with Babbage + sCrypt integration!
 
 # Setup
-Install the ZoKrates CLI:
+
+Clone and install the dependencies
 
 ```
-curl -Ls https://scrypt.io/scripts/setup-zokrates.sh | sh
+npm i
 ```
 
-Set up the verifier contract:
-```
-npm i && npm run setup
-```
-
+Install a [MetaNet Client](https://projectbabbage.com/metanet-client) on your computer (please use **Stageline** for testing), and then you are ready to start the UI.
 
 # Start
+
+Run the app locally:
 
 ```
 npm start
 ```
 
-## Credits
-- diemkay's [battleship fontend](https://github.com/diemkay/battleship)
-- Made with [Create React App](https://github.com/facebook/create-react-app).
-- Sounds from [Leshy Online Sound Generator](https://www.leshylabs.com/apps/sfMaker/) and [FreeSound.org](https://freesound.org/), specifically [LittleRobotSoundFactory](people/LittleRobotSoundFactory/sounds/270468/).
+Enter an amount of satoshis, a number of blocks to lock for, and a message you want to lock your coins onto.
+
+Press the button, and your coins will be locked. You can see your TXID by clicking on the MetaNet Client and finding the Locksmith app.
+
+Later, you can come back and when your coins are available, they will be returned to your MetaNet Client balance.
+
+## License
+
+The license for the code in this repository is the Open BSV License.

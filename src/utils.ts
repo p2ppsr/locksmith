@@ -41,26 +41,45 @@ export const lock = async (
         BigInt(lockBlockHeight),
         toByteString(message, true)
     )
-    await deployContract(
+    const tx = await deployContract(
         instance,
         satoshis,
         `Lock coins for ${lockBlockCount} ${lockBlockCount === 1 ? 'block' : 'blocks'}: ${message}`,
         BASKET_ID,
         `${keyID},${lockBlockHeight}`
     )
+    return tx.txid
+}
+
+/**
+ * Lists all currently-active locks.
+ */
+export const list = async () => {
+    const contracts = await listContracts(BASKET_ID, (lockingScript: string) => {
+        return Locksmith.fromLockingScript(lockingScript) as Locksmith
+    })
+    const { headers: currentBlockHeight } = await woc.chainInfo()
+
+    return contracts.map(x => ({
+        sats: x.amount,
+        left: Number(x.contract.lockUntilHeight) - currentBlockHeight,
+        message: Buffer.from(x.contract.message.toString(), 'hex').toString('utf8')
+    }))
 }
 
 /**
  * Starts a background unlock watchman, that will automatically unlock any
  * available coins from previous contracts.
  */
-export const startBackgroundUnlockWatchman = async () => {
+export const startBackgroundUnlockWatchman = async (refreshCallback) => {
     let previousBlock = 0
     while (true) {
         const { headers: currentBlockHeight } = await woc.chainInfo()
         if (currentBlockHeight === previousBlock) {
             await new Promise(r => setTimeout(r, 60000))
             continue
+        } else {
+            previousBlock = currentBlockHeight
         }
         const contracts = await listContracts(BASKET_ID, (lockingScript: string) => {
             return Locksmith.fromLockingScript(lockingScript) as Locksmith
@@ -132,6 +151,7 @@ export const startBackgroundUnlockWatchman = async () => {
                 lockBlockHeight,
                 0xfffffffe
             )
+            refreshCallback()
         }
         await new Promise(r => setTimeout(r, 60000))
     }
