@@ -14,16 +14,15 @@ export const App: React.FC = () => {
   const [message, setMessage] = useState('')
   const [txid, setTxid] = useState('')
   const [loading, setLoading] = useState(false)
-  const [locks, setLocks] = useState([])
+  const [locks, setLocks] = useState<Array<{ sats: number, left: number, message: string }>>([])
 
-  // Run a 1s interval for checking if MNC is running
   useAsyncEffect(async () => {
     const intervalId = setInterval(async () => {
-      const hasMNC = await checkForMetaNetClient()
-      if (hasMNC === 0) {
-        setIsMncMissing(true) // Open modal if MNC is not found
-      } else {
-        setIsMncMissing(false) // Ensure modal is closed if MNC is found
+      try {
+        const hasMNC = await checkForMetaNetClient()
+        setIsMncMissing(hasMNC === 0)
+      } catch (e) {
+        console.error('Error checking MetaNet Client:', e)
       }
     }, 1000)
 
@@ -33,33 +32,48 @@ export const App: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    (async () => {
-      const lockList = await list()
-      setLocks(lockList)
-    })()
+    const loadLocks = async (): Promise<void> => {
+      try {
+        const lockList = await list()
+        if (lockList !== null) {
+          setLocks(lockList as Array<{ sats: number, left: number, message: string }>)
+        }
+      } catch (e) {
+        console.error('Error loading locks:', e)
+      }
+    }
+
+    void loadLocks()
+
     startBackgroundUnlockWatchman(async () => {
-      const lockList = await list()
-      setLocks(lockList)
+      try {
+        const lockList = await list()
+        if (lockList !== null) {
+          setLocks(lockList as Array<{ sats: number, left: number, message: string }>)
+        }
+      } catch (e) {
+        console.error('Error in background unlock watchman:', e)
+      }
     })
   }, [])
 
-  const handleSubmit = async e => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     try {
       setLoading(true)
-      const deployTxid = await lock(
-        Number(satoshis),
-        Number(lockBlockCount),
-        message
-      )
-      setTxid(deployTxid)
+      const deployTxid = await lock(Number(satoshis), Number(lockBlockCount), message)
+      if (deployTxid !== undefined) {
+        setTxid(deployTxid)
+      }
       setLoading(false)
       setMessage('')
       setSatoshis('')
       setLockBlockCount('')
       const lockList = await list()
-      setLocks(lockList)
-    } catch (e) {
+      if (lockList !== null) {
+        setLocks(lockList as Array<{ sats: number, left: number, message: string }>)
+      }
+    } catch (e: any) {
       setLoading(false)
       window.alert(e.message)
     }
@@ -67,7 +81,7 @@ export const App: React.FC = () => {
 
   return (
     <Container maxWidth='sm' sx={{ paddingTop: '2em' }}>
-      <NoMncModal open={isMncMissing} onClose={() => setIsMncMissing(false)} appName={''} />
+      <NoMncModal open={isMncMissing} onClose={() => { setIsMncMissing(false) }} appName={''} />
       <center style={{ margin: '1em' }}>
         <form onSubmit={handleSubmit}>
           <center>
@@ -124,7 +138,7 @@ export const App: React.FC = () => {
         </form>
         <br />
         <br />
-        {txid && <Typography>Locking TXID: {txid}</Typography>}
+        {txid !== '' && <Typography>Locking TXID: {txid}</Typography>}
         <br />
         <br />
         {locks.length > 0 && (

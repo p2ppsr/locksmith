@@ -7,7 +7,14 @@ import web3Theme from './theme'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 
-const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
+const rootElement = document.getElementById('root')
+
+if (rootElement === null) {
+  throw new Error('Failed to find the root element')
+}
+
+const root = ReactDOM.createRoot(rootElement)
+
 root.render(
   <ThemeProvider theme={web3Theme}>
     <ToastContainer
