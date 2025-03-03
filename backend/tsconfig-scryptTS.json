@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "es2021",
+    "lib": ["es2021"],
+    "experimentalDecorators": true,
+    "module": "commonjs",
+    "rootDir": "./",
+    "moduleResolution": "node",
+    "outDir": "./artifacts",
+    "esModuleInterop": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "noEmit": true,
+    "plugins": [
+      {
+        "transform": "/home/bob1/babbage-wallet-toolbox-3/hodlocker/backend/node_modules/scrypt-ts-transpiler/dist/index.js",
+        "transformProgram": true,
+        "outDir": "artifacts"
+      }
+    ]
+  },
+  "include": ["src/contracts/**/*.ts"]
+}

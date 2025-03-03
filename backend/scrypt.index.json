@@ -1,0 +1,4 @@
+{
+  "scryptBase": "artifacts",
+  "bindings": [{ "symbol": "LocksmithContract", "path": "Locksmith.scrypt" }]
+}

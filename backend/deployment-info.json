@@ -1,0 +1,39 @@
+{
+  "project": {
+    "name": "Hodlocker",
+    "description": "Hodlocker backend using LARS",
+    "version": "0.0.1"
+  },
+  "backend": {
+    "framework": "express",
+    "port": 3000,
+    "overlayExpress": true,
+    "lookupService": true,
+    "database": {
+      "type": "mysql",
+      "host": "localhost",
+      "port": 3306,
+      "user": "root",
+      "password": "root",
+      "database": "hodlocker_db"
+    }
+  },
+  "frontend": {
+    "framework": "react",
+    "port": 5173
+  },
+  "ngrok": {
+    "enabled": true
+  },
+  "contracts": {
+    "compile": true
+  },
+  "configs": [
+    {
+      "name": "Local LARS",
+      "network": "testnet",
+      "provider": "LARS",
+      "run": []
+    }
+  ]
+}
