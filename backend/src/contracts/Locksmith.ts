@@ -36,7 +36,10 @@ export class Locksmith extends SmartContract {
   @method(SigHash.ANYONECANPAY_NONE)
   public unlock(sig: Sig, pubKey: PubKey): void {
     assert(this.ctx.locktime < 500000000, 'must use blockHeight locktime')
-    assert(this.ctx.sequence === 0xfffffffen, 'must use sequence locktime')
+    assert(
+      this.ctx.sequence === BigInt(0xfffffffe),
+      'must use sequence locktime'
+    )
     assert(
       this.ctx.locktime >= this.lockUntilHeight,
       'lockUntilHeight not reached'
