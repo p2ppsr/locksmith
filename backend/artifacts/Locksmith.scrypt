@@ -11,14 +11,4 @@ contract Locksmith {
     this.lockUntilHeight = lockUntilHeight;
     this.message = message;
   }
-  public function unlock(Sig sig, PubKey pubKey, SigHashPreimage __scrypt_ts_txPreimage) {
-    require(Tx.checkPreimageSigHashType(__scrypt_ts_txPreimage, SigHashType(b'c2')));
-    this.__scrypt_ts_ctx_locktime = SigHash.nLocktime(__scrypt_ts_txPreimage);
-    this.__scrypt_ts_ctx_sequence = SigHash.nSequence(__scrypt_ts_txPreimage);
-    require(this.__scrypt_ts_ctx_locktime < 500000000);
-    require(this.__scrypt_ts_ctx_sequence == 0xfffffffe);
-    require(this.__scrypt_ts_ctx_locktime >= this.lockUntilHeight);
-    require(hash160(pubKey) == this.address);
-    require(checkSig(sig, pubKey));
-  }
 }

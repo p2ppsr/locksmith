@@ -1,6 +1,6 @@
 {
     "version": 9,
-    "compilerVersion": "1.19.4+commit.cfee948",
+    "compilerVersion": "1.20.0+commit.693498a",
     "contract": "Locksmith",
     "md5": "d4d1e7f4ef9b2096e7f7b0535dd0a4fc",
     "structs": [],

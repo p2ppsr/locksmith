@@ -1,4 +1,1 @@
-{
-  "scryptBase": "artifacts",
-  "bindings": [{ "symbol": "LocksmithContract", "path": "Locksmith.scrypt" }]
-}
+{"scryptBase":"artifacts","bindings":[{"symbol":"Locksmith","path":"Locksmith.scrypt"}]}

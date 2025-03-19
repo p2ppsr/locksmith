@@ -1,6 +1,21 @@
 {
-  "success": true,
-  "errors": [],
+  "success": false,
+  "errors": [
+    {
+      "message": "public methods cannot have a return type",
+      "srcRange": {
+        "fileName": "/home/bob1/hodlocker-new/hodlocker/backend/src/contracts/Locksmith.ts",
+        "start": {
+          "line": 37,
+          "character": 44
+        },
+        "end": {
+          "line": 37,
+          "character": 48
+        }
+      }
+    }
+  ],
   "scryptfile": "Locksmith.scrypt",
   "sourceMapFile": "Locksmith.scrypt.map",
   "ctxMethods": [

@@ -1,5 +1,5 @@
 import { LocksmithArtifact } from '@bsv/backend'
-import { Locksmith } from '../../../backend/src/index'
+import { Locksmith } from '../../../backend/src/contracts/Locksmith'
 import { WalletClient, Transaction } from '@bsv/sdk'
 import {
   bsv,

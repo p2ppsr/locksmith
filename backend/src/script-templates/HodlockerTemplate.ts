@@ -1,5 +1,4 @@
-import { P2PKH } from '@bsv/sdk/dist/esm/src/script/templates/index.js'
-
+import { P2PKH } from '@bsv/sdk'
 // TODO:
 
 /*
