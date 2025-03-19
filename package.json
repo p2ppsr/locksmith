@@ -5,17 +5,23 @@
   "description": "Standard BSV project structure",
   "scripts": {
     "lars": "lars",
-    "cars": "cars",
     "lars:config": "lars config",
     "start": "lars start",
-    "build": "cars build 1",
-    "deploy": "cars deploy now 1"
+    "build:backend": "cd backend && tsc -b && npx scrypt-cli compile",
+    "build:frontend": "cd frontend && webpack --config webpack.prod.js",
+    "build": "npm run build:backend && npm run build:frontend",
+    "deploy": "lars deploy now"
   },
   "keywords": [],
   "author": "",
   "license": "SEE LICENSE IN LICENSE.txt",
   "devDependencies": {
-    "@bsv/cars-cli": "^1.0.4",
-    "@bsv/lars": "^1.0.9"
+    "@bsv/cars-cli": "^1.1.4",
+    "@bsv/lars": "^1.3.1"
+  },
+  "dependencies": {
+    "@bsv/sdk": "^1.4.9",
+    "mongodb": "^6.15.0",
+    "scrypt-ts": "^1.4.5"
   }
 }

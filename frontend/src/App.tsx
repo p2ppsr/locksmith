@@ -1,219 +1,240 @@
-import Whatsonchain from 'whatsonchain'
-import { Setup, wait } from '@bsv/wallet-toolbox'
+import React, { useEffect, useState } from 'react'
 import {
-  Beef,
-  CreateActionArgs,
-  CreateActionResult,
-  Transaction
-} from '@bsv/sdk'
-import { Locksmith } from '@bsv/backend'
-import { bsv, Addr, toByteString } from 'scrypt-ts'
-import axios from 'axios'
-import React, { useState, type FormEvent } from 'react'
-import { ToastContainer, toast } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css'
-import {
-  AppBar, Toolbar, List, ListItem, Fab, LinearProgress, Typography, IconButton, Grid
+  TextField,
+  Button,
+  Typography,
+  LinearProgress,
+  Container
 } from '@mui/material'
-import { styled } from '@mui/system'
-import AddIcon from '@mui/icons-material/Add'
-import GitHubIcon from '@mui/icons-material/GitHub'
+import { lock, list, startBackgroundUnlockWatchman } from './utils/utils'
 import useAsyncEffect from 'use-async-effect'
-import { IdentityCard } from 'metanet-identity-react'
-import { SHIPBroadcaster, LookupResolver, Utils, ProtoWallet } from '@bsv/sdk'
+//import checkForMetaNetClient from './utils/checkForMetaNetClient'
+import { NoMncModal } from 'metanet-react-prompt'
 
-const anyoneWallet = new ProtoWallet('anyone')
+import { WalletClient } from '@bsv/sdk'
 
-const AppBarPlaceholder = styled('div')({
-  height: '4em'
-})
+export const App: React.FC = () => {
+  const [isMncMissing, setIsMncMissing] = useState<boolean>(false)
+  const [satoshis, setSatoshis] = useState('')
+  const [lockBlockCount, setLockBlockCount] = useState('')
+  const [message, setMessage] = useState('')
+  const [txid, setTxid] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [locks, setLocks] = useState<
+    Array<{ sats: number; left: number; message: string }>
+  >([])
 
-const NoItems = styled(Grid)({
-  margin: 'auto',
-  textAlign: 'center',
-  marginTop: '5em'
-})
+  // useAsyncEffect(async () => {
+  //   const intervalId = setInterval(async () => {
+  //     try {
+  //       const hasMNC = await checkForMetaNetClient()
+  //       setIsMncMissing(hasMNC === 0)
+  //     } catch (e) {
+  //       console.error('Error checking MetaNet Client:', e)
+  //     }
+  //   }, 1000)
 
-const AddMoreFab = styled(Fab)({
-  position: 'fixed',
-  right: '1em',
-  bottom: '1em',
-  zIndex: 10
-})
+  //   return () => {
+  //     clearInterval(intervalId)
+  //   }
+  // }, [])
 
-const LoadingBar = styled(LinearProgress)({
-  margin: '1em'
-})
-
-const GitHubIconStyle = styled(IconButton)({
-  color: '#ffffff'
-})
-
-async function fetchRawTransaction(txid: string): Promise<string> {
-  try {
-    const response = await axios.get(
-      `https://api.whatsonchain.com/v1/bsv/test/tx/${txid}/hex`
-    )
-    return response.data
-  } catch (error) {
-    throw new Error(
-      `Failed to fetch raw transaction: ${(error as Error).message}`
-    )
-  }
-}
-
-const App: React.FC = () => {
-  const [createOpen, setCreateOpen] = useState<boolean>(false)
-  const [createLoading, setCreateLoading] = useState<boolean>(false)
-  const [locksmithsLoading, setLocksmithsLoading] = useState<boolean>(true)
-  const [locksmiths, setLocksmiths] = useState<Locksmith[]>([])
-
-  const handleCreateSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault()
-    try {
-      setCreateLoading(true)
-
-      const env = Setup.getEnv('test')
-      const identityKey = env.identityKey
-      const setup = await Setup.createWalletClient({
-        env,
-        rootKeyHex: env.devKeys[identityKey]
-      })
-
-      const woc = new Whatsonchain('testnet')
-      const result = await woc.chainInfo()
-      const lockBlockHeight = result.headers + 1
-
-      Locksmith.loadArtifact()
-      await Locksmith.compile()
-
-      const address = bsv.PublicKey.fromString(identityKey).toAddress()
-      const lockBlockHeightStr = lockBlockHeight.toString() 
-      const locksmithObj = new Locksmith(
-        Addr(address.toByteString()),
-        BigInt(1),
-        toByteString(lockBlockHeightStr, true)
-      )
-      console.log(
-        `Locking Script: (${locksmithObj.lockingScript.length}) ${locksmithObj.lockingScript.toHex()}`
-      )
-
-      const createActionArgs: CreateActionArgs = {
-        outputs: [
-          {
-            lockingScript: locksmithObj.lockingScript.toHex(),
-            satoshis: 1,
-            basket: 'testhl3',
-            customInstructions: '1',
-            outputDescription: 'Output for Locksmith contract'
-          }
-        ],
-        labels: ['deploying locksmith contract'],
-        description: 'Deploy a Locksmith contract',
-        options: { acceptDelayedBroadcast: false }
-      }
-
-      // Use new `setup.wallet.createAction` method
-      const createActionResult: CreateActionResult = await setup.wallet.createAction(createActionArgs)
-      console.log('Create Action Result:', createActionResult)
-
-      const txid = createActionResult.txid
-
-      console.log('Fetching transaction for BEEF encoding...', txid)
-      await wait(20000)
-
-      const rawTx = await fetchRawTransaction(txid!)
-      console.log('Fetched Raw Transaction:', rawTx)
-
-      const tx = Transaction.fromHex(rawTx)
-      const beef = Beef.fromBinary(tx.toAtomicBEEF())
-
-      console.log('Generated Verified BEEF:', beef.toHex())
-
-      toast.dark('Locksmith successfully created!')
-
-      setLocksmiths((originalLocksmiths) => [
-        locksmithObj,
-        ...originalLocksmiths
-      ])
-
-      setCreateOpen(false)
-    } catch (e) {
-      toast.error((e as Error).message)
-      console.error(e)
-    } finally {
-      setCreateLoading(false)
-    }
-  }
-
-  useAsyncEffect(async () => {
-    try {
-      const resolver = new LookupResolver()
-      let lookupResult = await resolver.query({
-        service: 'ls_locksmith',
-        query: 'findAll'
-      })
-      if (!lookupResult || lookupResult.type !== 'output-list') {
-        throw new Error('Wrong result type!')
-      }
-      const parsedResults: Locksmith[] = []
-      for (const result of lookupResult.outputs) {
-        try {
-          const tx = Transaction.fromHex(result.beef.toString())
-          const script = tx.outputs[result.outputIndex].lockingScript.toHex()
-          const locksmith = Locksmith.fromLockingScript(script) as unknown as Locksmith
-
-          parsedResults.push(locksmith)
-        } catch (error) {
-          console.error('Failed to parse Locksmith. Error:', error)
+  useEffect(() => {
+    const loadLocks = async (): Promise<void> => {
+      const walletClient = new WalletClient('json-api', 'non-admin.com')
+      try {
+        const lockList = await list(walletClient)
+        if (lockList !== null) {
+          setLocks(
+            lockList as Array<{ sats: number; left: number; message: string }>
+          )
         }
+      } catch (e) {
+        console.error('Error loading locks:', e)
       }
-      setLocksmiths(parsedResults)
-      setLocksmithsLoading(false)
-    } catch (error) {
-      console.error('Failed to load Locksmiths. Error:', error)
-    } finally {
-      setLocksmithsLoading(false)
     }
+
+    void loadLocks()
+
+    startBackgroundUnlockWatchman(async () => {
+      const walletClient = new WalletClient('json-api', 'non-admin.com')
+
+      try {
+        const lockList = await list(walletClient)
+        if (lockList !== null) {
+          setLocks(
+            lockList as Array<{ sats: number; left: number; message: string }>
+          )
+        }
+      } catch (e) {
+        console.error('Error in background unlock watchman:', e)
+      }
+    })
   }, [])
 
-  return (
-    <>
-      <ToastContainer position='top-right' autoClose={5000} />
-      <AppBar position='static'>
-        <Toolbar>
-          <Typography variant='h6'>Locksmith Overlay</Typography>
-          <GitHubIconStyle onClick={() => window.open('https://github.com/p2ppsr/locksmith', '_blank')}>
-            <GitHubIcon />
-          </GitHubIconStyle>
-        </Toolbar>
-      </AppBar>
-      <AppBarPlaceholder />
+  const handleSubmit = async (
+    e: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
+    const walletClient = new WalletClient('json-api', 'non-admin.com')
 
-      {locksmiths.length >= 1 && (
-        <AddMoreFab color='primary' onClick={() => { setCreateOpen(true) }}>
-          <AddIcon />
-        </AddMoreFab>
-      )}
-
-      {locksmithsLoading
-        ? (<LoadingBar />)
-        : (
-          <List>
-            {locksmiths.length === 0 && (
-              <NoItems>
-                <Typography variant='h4'>No Locksmiths</Typography>
-              </NoItems>
-            )}
-            {locksmiths.map((locksmith, i) => (
-              <ListItem key={i}>
-                <Typography>{locksmith.lockUntilHeight.toString()}</Typography>
-              </ListItem>
-            ))}
-          </List>
+    e.preventDefault()
+    try {
+      setLoading(true)
+      const deployTxid = await lock(
+        Number(satoshis),
+        Number(lockBlockCount),
+        message
+      )
+      if (deployTxid !== undefined) {
+        setTxid(deployTxid)
+      }
+      setLoading(false)
+      setMessage('')
+      setSatoshis('')
+      setLockBlockCount('')
+      const lockList = await list(walletClient)
+      if (lockList !== null) {
+        setLocks(
+          lockList as Array<{ sats: number; left: number; message: string }>
         )
       }
-    </>
+    } catch (e: any) {
+      setLoading(false)
+      window.alert(e.message)
+    }
+  }
+
+  return (
+    <Container maxWidth="sm" sx={{ paddingTop: '2em' }}>
+      <NoMncModal
+        open={isMncMissing}
+        onClose={() => {
+          setIsMncMissing(false)
+        }}
+        appName={''}
+      />
+      <center style={{ margin: '1em' }}>
+        <form onSubmit={handleSubmit}>
+          <center>
+            <Typography variant="h3">Locksmith</Typography>
+            <Typography variant="h5">
+              For those of us who think purposely freezing our money for a cause
+              is cool.
+            </Typography>
+          </center>
+          <br />
+          <br />
+          <TextField
+            disabled={loading}
+            type="number"
+            autoFocus
+            fullWidth
+            label="satoshis:"
+            value={satoshis}
+            onChange={(e: {
+              target: { value: React.SetStateAction<string> }
+            }) => {
+              setSatoshis(e.target.value)
+            }}
+          />
+          <br />
+          <br />
+          <TextField
+            disabled={loading}
+            type="number"
+            label="how many blocks to lock for:"
+            value={lockBlockCount}
+            fullWidth
+            onChange={(e: {
+              target: { value: React.SetStateAction<string> }
+            }) => {
+              setLockBlockCount(e.target.value)
+            }}
+          />
+          <br />
+          <br />
+          <TextField
+            disabled={loading}
+            label="Why? Just why?"
+            value={message}
+            fullWidth
+            rows={8}
+            multiline
+            onChange={(e: {
+              target: { value: React.SetStateAction<string> }
+            }) => {
+              setMessage(e.target.value)
+            }}
+          />
+          <br />
+          <br />
+          <Typography>
+            WARNING: Your coins will not be accessible until after the number of
+            blocks have passed. Be responsible!
+          </Typography>
+          <br />
+          <br />
+          <Button
+            disabled={loading}
+            type="submit"
+            variant="contained"
+            size="large"
+            color="primary"
+          >
+            Lock Coins
+          </Button>
+          <br />
+          <br />
+          {loading && <LinearProgress />}
+        </form>
+        <br />
+        <br />
+        {txid !== '' && <Typography>Locking TXID: {txid}</Typography>}
+        <br />
+        <br />
+        {locks.length > 0 && (
+          <div>
+            <Typography variant="h4">Your Current Locks</Typography>
+            <table style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <td>
+                    <Typography>
+                      <b>Satoshis Locked</b>
+                    </Typography>
+                  </td>
+                  <td>
+                    <Typography>
+                      <b>Blocks Left</b>
+                    </Typography>
+                  </td>
+                  <td>
+                    <Typography>
+                      <b>Message</b>
+                    </Typography>
+                  </td>
+                </tr>
+              </thead>
+              <tbody>
+                {locks.map((x, i) => (
+                  <tr key={i}>
+                    <td>
+                      <Typography>{x.sats}</Typography>
+                    </td>
+                    <td>
+                      <Typography>{x.left}</Typography>
+                    </td>
+                    <td>
+                      <Typography>{x.message}</Typography>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </center>
+    </Container>
   )
 }
 
