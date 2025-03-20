@@ -1,9 +1,0 @@
-{
-  "success": true,
-  "errors": [],
-  "scryptfile": "Locksmith.scrypt",
-  "sourceMapFile": "Locksmith.scrypt.map",
-  "ctxMethods": [
-    "unlock"
-  ]
-}

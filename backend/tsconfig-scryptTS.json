@@ -17,13 +17,13 @@
     "noEmit": true,
     "plugins": [
       {
-        "transform": "/home/bob1/babbage-wallet-toolbox-3/hodlocker/backend/node_modules/scrypt-ts-transpiler/dist/index.js",
+        "transform": "/home/bob1/hodlocker-new/hodlocker/backend/node_modules/scrypt-ts-transpiler/dist/index.js",
         "transformProgram": true,
         "outDir": "artifacts"
       }
     ]
   },
   "include": [
-    "src/contracts/**/*.ts"
+    "src/contracts/Locksmith.ts"
   ]
 }

@@ -1,5 +1,5 @@
 import { AdmittanceInstructions, TopicManager } from '@bsv/overlay'
-import { Transaction, ProtoWallet, Utils } from '@bsv/sdk'
+import { Transaction, ProtoWallet, Utils, Beef } from '@bsv/sdk'
 import docs from './HodlockerTopicDocs.md.js'
 import locksmithContractJson from '../../artifacts/Locksmith.json' with { type: 'json' }
 import { LocksmithContract } from '../contracts/Locksmith.js'
@@ -20,6 +20,11 @@ export default class HodlockerTopicManager implements TopicManager {
     beef: number[],
     previousCoins: number[]
   ): Promise<AdmittanceInstructions> {
+    console.log(`identifyAdmissibleOutputs:beef:${Utils.toHex(beef)}`)
+    // throw new Error(
+    //   `identifyAdmissibleOutputs:beef:${Utils.toHex(beef)}`
+    // )
+
     const outputsToAdmit: number[] = []
 
     try {

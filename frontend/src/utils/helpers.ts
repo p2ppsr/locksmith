@@ -62,7 +62,7 @@ export const deployContract = async (
         outputDescription: 'Output for hodlocker token'
       }
     ],
-    options: { acceptDelayedBroadcast }
+    options: { acceptDelayedBroadcast: false, noSend: true }
   })
 }
 
