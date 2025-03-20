@@ -12,6 +12,8 @@ import useAsyncEffect from 'use-async-effect'
 import { NoMncModal } from 'metanet-react-prompt'
 
 import { WalletClient } from '@bsv/sdk'
+import { Token } from './types/types'
+;(window as any).startBackgroundUnlockWatchman = startBackgroundUnlockWatchman
 
 export const App: React.FC = () => {
   const [isMncMissing, setIsMncMissing] = useState<boolean>(false)
@@ -23,6 +25,7 @@ export const App: React.FC = () => {
   const [locks, setLocks] = useState<
     Array<{ sats: number; left: number; message: string }>
   >([])
+  const [hodlocker, setHodlocker] = useState<Token[]>([])
 
   // useAsyncEffect(async () => {
   //   const intervalId = setInterval(async () => {
@@ -56,6 +59,7 @@ export const App: React.FC = () => {
 
     void loadLocks()
 
+    console.log('🚀 Starting background unlock watchman...')
     startBackgroundUnlockWatchman(async () => {
       const walletClient = new WalletClient('json-api', 'non-admin.com')
 
@@ -83,7 +87,8 @@ export const App: React.FC = () => {
       const deployTxid = await lock(
         Number(satoshis),
         Number(lockBlockCount),
-        message
+        message,
+        setHodlocker
       )
       if (deployTxid !== undefined) {
         setTxid(deployTxid)
@@ -98,9 +103,9 @@ export const App: React.FC = () => {
           lockList as Array<{ sats: number; left: number; message: string }>
         )
       }
-    } catch (e: any) {
+    } catch (e) {
       setLoading(false)
-      window.alert(e.message)
+      window.alert((e as Error).message)
     }
   }
 

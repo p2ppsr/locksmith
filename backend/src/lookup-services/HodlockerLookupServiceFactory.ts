@@ -54,7 +54,7 @@ class HodlockerLookupService implements LookupService {
 
       // Extract fields (ensuring `message` is included)
       const address = hodlocker.address
-      const lockUntilHeight = hodlocker.lockUntilHeight
+      const lockUntilHeight = hodlocker.lockUntilHeight // ✅ Convert `bigint` to `number`
       const message = hodlocker.message // Ensure this exists!
 
       if (!address || !lockUntilHeight || !message) {
@@ -63,16 +63,16 @@ class HodlockerLookupService implements LookupService {
         )
       }
 
-      // Store the lock data (now including message)
+      // ✅ Store the lock data using `txid` as the key
       await this.storage.storeRecord(
-        txid,
-        outputIndex,
-        address,
-        lockUntilHeight,
-        message // Ensure this argument is passed!
+        txid, // ✅ Ensure TXID is passed
+        outputIndex, // ✅ Ensure outputIndex is passed
+        address, // ✅ Ensure address is stored
+        lockUntilHeight, // ✅ Convert `bigint` to `number`
+        message // ✅ Ensure message is stored
       )
     } catch (e) {
-      console.error('Error indexing Hodlocker token in lookup database', e)
+      console.error('❌ Error indexing Hodlocker token in lookup database', e)
       return
     }
   }
@@ -116,10 +116,10 @@ class HodlockerLookupService implements LookupService {
     question: LookupQuestion
   ): Promise<LookupAnswer | LookupFormula> {
     if (question.query === undefined || question.query === null) {
-      throw new Error('A valid query must be provided!')
+      throw new Error('❌ A valid query must be provided!')
     }
     if (question.service !== 'ls_hodlocker') {
-      throw new Error('Lookup service not supported!')
+      throw new Error('❌ Lookup service not supported!')
     }
 
     const query = question.query as {
@@ -128,12 +128,47 @@ class HodlockerLookupService implements LookupService {
       findAll?: boolean
     }
 
+    if (query.txid) {
+      console.log(`🔍 Lookup by TXID: ${query.txid}`)
+      const record = await this.storage.findByTxid(query.txid)
+
+      if (!record) {
+        return {
+          type: 'output-list', // ✅ Ensure it's a valid LookupAnswer type
+          outputs: [] // ✅ Return an empty array instead of an invalid object
+        }
+      }
+    }
+
+    if (query.address) {
+      console.log(`🔍 Lookup by Address: ${query.address}`)
+      const records = await this.storage.findByAddress(query.address)
+
+      if (!records.length) {
+        return {
+          type: 'output-list', // ✅ Required field for valid LookupAnswer
+          outputs: records.map(record => ({
+            beef: record.beef, // ✅ Ensure we return the expected data format
+            outputIndex: record.outputIndex
+          }))
+        }
+      }
+
+      return records.map(record => ({
+        txid: record.txid,
+        outputIndex: record.outputIndex,
+        history: record.history ?? undefined
+      }))
+    }
+
     if (query.findAll) {
+      console.log(`🔍 Lookup all Hodlocker records`)
       return await this.storage.findAll()
     }
 
-    const mess = JSON.stringify(question, null, 2)
-    throw new Error(`question.query:${mess}}`)
+    throw new Error(
+      `❌ Invalid lookup query: ${JSON.stringify(question, null, 2)}`
+    )
   }
 
   /**

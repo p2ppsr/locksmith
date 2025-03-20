@@ -4,8 +4,14 @@ import {
   CreateActionOutput,
   WalletClient,
   WalletOutput,
-  ListOutputsResult
+  ListOutputsResult,
+  ListOutputsArgs,
+  Beef,
+  Utils,
+  Transaction,
+  HexString
 } from '@bsv/sdk'
+import { lookupHodlockerByTxid } from './utils'
 
 /**
  * Verify a variable is not null or undefined.
@@ -17,6 +23,7 @@ import {
  */
 export const verifyTruthy = <T>(v: T | null | undefined): T => {
   if (v == null) {
+    console.error('verifyTruthy failed! Value is null or undefined.')
     throw new Error('A bad thing has happened.')
   }
   return v
@@ -79,9 +86,11 @@ export const deployContract = async (
 //     })
 // }
 
-export interface ListResult<T extends SmartContract> extends ListOutputsResult {
+export interface ListResult<T extends SmartContract> {
   contract: T
-  outputs: WalletOutput[] // Ensure compatibility with WalletOutput type
+  txid: string
+  BEEF: HexString
+  outputs: WalletOutput[] // ✅ Ensure compatibility with redeemContract
 }
 
 /**
@@ -97,23 +106,45 @@ export const listContracts = async <T extends SmartContract>(
 ): Promise<ListResult<T>[]> => {
   const walletClient = new WalletClient('json-api', 'non-admin.com')
 
-  const listOutputResults: ListOutputsResult = await walletClient.listOutputs({
+  // ✅ Fetch outputs
+  const listOutputResults = await walletClient.listOutputs({
     basket,
     includeCustomInstructions: true
   })
 
-  return listOutputResults.outputs.map(output => ({
-    contract: contractHydrator(output.lockingScript!), // Ensure contract is mapped properly
-    satoshis: output.satoshis, // Use `satoshis` instead of `amount`
-    lockingScript: output.lockingScript,
-    spendable: output.spendable,
-    customInstructions: output.customInstructions,
-    tags: output.tags,
-    outpoint: output.outpoint, // New world: Use `outpoint` instead of `txid + vout`
-    labels: output.labels,
-    outputs: listOutputResults.outputs, // Include all outputs
-    totalOutputs: listOutputResults.totalOutputs // Ensure `totalOutputs` is explicitly defined
-  }))
+  console.log('🔍 Full listOutputs response:', listOutputResults)
+
+  // ✅ Use `Promise.all` to resolve `lookupHodlockerByTxid` in parallel
+  const contracts = await Promise.all(
+    listOutputResults.outputs.map(async output => {
+      if (!output.outpoint) {
+        console.warn('⚠️ Skipping contract with missing outpoint:', output)
+        return null
+      }
+
+      const [txid] = output.outpoint.split('.') // Extract TXID
+
+      // 🔍 Lookup BEEF using TXID
+      const hodlockerData = await lookupHodlockerByTxid(txid)
+      if (!hodlockerData) {
+        console.warn(`⚠️ No BEEF found for txid: ${txid}`)
+        return null
+      }
+
+      // ✅ Hydrate contract using retrieved lockingScript
+      const contract = contractHydrator(hodlockerData.lockingScript)
+
+      return {
+        contract,
+        txid,
+        BEEF: hodlockerData.atomicBeefTX,
+        outputs: listOutputResults.outputs // ✅ Ensure outputs are available
+      }
+    })
+  )
+
+  // ✅ Return filtered results
+  return contracts.filter((result): result is ListResult<T> => result !== null)
 }
 
 //   export const listContracts_old = async <T extends SmartContract>(
@@ -206,6 +237,11 @@ export const redeemContract = async (
     })
 
     console.log('Transaction Executed Successfully:', actionResult)
+    const transaction = Transaction.fromAtomicBEEF(actionResult.tx!)
+    const txid = transaction.id('hex')
+    console.log('transaction:', transaction.toHex())
+    console.log('txid:', txid)
+
     return actionResult
   } catch (error) {
     console.error('Redeem Contract Failed:', (error as Error).message)

@@ -2,11 +2,11 @@
   "schema": "bsv-app",
   "schemaVersion": "1.0",
   "topicManagers": {
-    "tm_meter": "./backend/src/topic-managers/MeterTopicManager.ts"
+    "tm_hodlocker": "./backend/src/topic-managers/HodlockerTopicManager.ts"
   },
   "lookupServices": {
-    "ls_meter": {
-      "serviceFactory": "./backend/src/lookup-services/MeterLookupServiceFactory.ts",
+    "ls_hodlocker": {
+      "serviceFactory": "./backend/src/lookup-services/HodlockerLookupServiceFactory.ts",
       "hydrateWith": "mongo"
     }
   },
@@ -23,10 +23,7 @@
       "name": "Local LARS",
       "network": "mainnet",
       "provider": "LARS",
-      "run": [
-        "backend",
-        "frontend"
-      ]
+      "run": ["backend", "frontend"]
     },
     {
       "name": "babbage",
@@ -34,10 +31,7 @@
       "CARSCloudURL": "https://cars.babbage.systems",
       "projectID": "367b9d6893325fb058778371725cfdd5",
       "network": "mainnet",
-      "deploy": [
-        "frontend",
-        "backend"
-      ],
+      "deploy": ["frontend", "backend"],
       "frontendHostingMethod": "HTTPS"
     }
   ]

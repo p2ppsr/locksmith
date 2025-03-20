@@ -24,60 +24,64 @@ export default class HodlockerTopicManager implements TopicManager {
     previousCoins: number[]
   ): Promise<AdmittanceInstructions> {
     const outputsToAdmit: number[] = []
+
     try {
       const parsedTransaction = Transaction.fromBEEF(beef)
+      const txid = parsedTransaction.id('hex') // Extract TXID
+      console.log(`🔍 Processing TXID: ${txid}`)
 
       // Try to decode and validate transaction outputs
       for (const [i, output] of parsedTransaction.outputs.entries()) {
         try {
           // Parse sCrypt locking script
           const script = output.lockingScript.toHex()
+
           // Ensure Hodlocker can be constructed from script
           const locksmith = LocksmithContract.fromLockingScript(
             script
           ) as LocksmithContract
-          console.log(locksmith)
 
           // Extract the correct fields
           const address = locksmith.address
-          const lockUntilHeight = locksmith.lockUntilHeight
+          const lockUntilHeight = Number(locksmith.lockUntilHeight) // ✅ Convert `bigint` to `number`
           const message = locksmith.message
 
           if (!address || !lockUntilHeight || !message) {
-            throw new Error(
-              `Invalid lock fields. address: ${address}, lockUntilHeight: ${lockUntilHeight}, message: ${message}`
+            console.warn(
+              `⚠️ Invalid lock fields. address: ${address}, lockUntilHeight: ${lockUntilHeight}, message: ${message}`
             )
+            continue
           }
 
-          // This is where other overlay-level validation rules would be enforced
-          // Verify the creator signature came from creator's public key
+          // 🔹 Verify using lock height instead of missing signature
           const verifyResult = await anyoneWallet.verifySignature({
-            protocolID: [0, 'locksmith'],
+            protocolID: [0, 'hodlocker'],
             keyID: '1',
-            counterparty: address, // Corrected to use `address`
-            data: [1],
+            counterparty: address,
+            data: [lockUntilHeight], // Ensure correct signing data
             signature: Utils.toArray(script, 'hex') // Placeholder fix
           })
-          console.log(verifyResult)
 
-          if (verifyResult.valid !== true) {
-            throw new Error('Signature invalid')
+          if (!verifyResult.valid) {
+            console.warn(`⚠️ Signature invalid for TXID ${txid}`)
+            continue
           }
 
+          console.log(`✅ Admitted output ${i} in TXID ${txid}`)
           outputsToAdmit.push(i)
         } catch (error) {
-          // Continue processing other outputs
+          console.warn(`⚠️ Skipping invalid output in TXID ${txid}:`, error)
           continue
         }
       }
+
       if (outputsToAdmit.length === 0) {
-        console.warn('No outputs admitted!')
-        // throw new ERR_BAD_REQUEST('No outputs admitted!')
+        console.warn(`⚠️ No outputs admitted in TXID ${txid}`)
       }
     } catch (error) {
-      const beefStr = JSON.stringify(beef, null, 2)
+      console.error(`❌ Error identifying admissible outputs:`, error)
       throw new Error(
-        `topicManager:Error:identifying admissible outputs:${error} beef:${beefStr}}`
+        `topicManager:Error:identifying admissible outputs:${error}`
       )
     }
 

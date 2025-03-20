@@ -72,4 +72,14 @@ export class HodlockerStorage {
         }))
       )
   }
+
+  // ✅ Add findByTxid to lookup lock by txid
+  async findByTxid(txid: string) {
+    return await this.db.collection('hodlocker').findOne({ txid })
+  }
+
+  // ✅ Add findByAddress to lookup all locks by address
+  async findByAddress(address: string) {
+    return await this.db.collection('hodlocker').find({ address }).toArray()
+  }
 }
