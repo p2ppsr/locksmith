@@ -48,6 +48,8 @@ export const deployContract = async (
   metadata?: string,
   acceptDelayedBroadcast = false
 ): Promise<CreateActionResult> => {
+  console.log('Generated Locking Script:', instance.lockingScript.toHex())
+
   const walletClient = new WalletClient('json-api', 'non-admin.com')
   return await walletClient.createAction({
     description,

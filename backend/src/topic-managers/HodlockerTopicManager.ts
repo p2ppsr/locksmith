@@ -9,9 +9,6 @@ LocksmithContract.loadArtifact(locksmithContractJson)
 
 const anyoneWallet = new ProtoWallet('anyone')
 
-/**
- *  Note: The PushDrop package is used to decode BRC-48 style Pay-to-Push-Drop tokens.
- */
 export default class HodlockerTopicManager implements TopicManager {
   /**
    * Identify if the outputs are admissible depending on the particular protocol requirements
@@ -28,42 +25,48 @@ export default class HodlockerTopicManager implements TopicManager {
     try {
       const parsedTransaction = Transaction.fromBEEF(beef)
       const txid = parsedTransaction.id('hex') // Extract TXID
+
       console.log(`🔍 Processing TXID: ${txid}`)
 
-      // Try to decode and validate transaction outputs
       for (const [i, output] of parsedTransaction.outputs.entries()) {
         try {
           // Parse sCrypt locking script
           const script = output.lockingScript.toHex()
+          console.log(`🔹 Output ${i} Locking Script: ${script}`)
 
-          // Ensure Hodlocker can be constructed from script
+          // Ensure LocksmithContract can be constructed from script
           const locksmith = LocksmithContract.fromLockingScript(
             script
           ) as LocksmithContract
+          console.log('🔹 Parsed Locksmith Contract:', locksmith)
 
-          // Extract the correct fields
-          const address = locksmith.address
+          // 🔹 Extract values passed to Locksmith
           const lockUntilHeight = Number(locksmith.lockUntilHeight) // ✅ Convert `bigint` to `number`
-          const message = locksmith.message
+          const signature = locksmith.signer // ✅ Extracted signature
 
-          if (!address || !lockUntilHeight || !message) {
+          // 🔹 Ensure required fields exist
+          if (!lockUntilHeight || !signature) {
             console.warn(
-              `⚠️ Invalid lock fields. address: ${address}, lockUntilHeight: ${lockUntilHeight}, message: ${message}`
+              `⚠️ Missing required fields in output ${i}. Skipping...`
             )
             continue
           }
 
-          // 🔹 Verify using lock height instead of missing signature
+          console.log(
+            `🔹 Verifying Signature -> LockUntilHeight: ${lockUntilHeight}, Signature: ${signature}`
+          )
+
+          // ✅ Match `walletClient.createSignature` exactly
           const verifyResult = await anyoneWallet.verifySignature({
             protocolID: [0, 'hodlocker'],
-            keyID: '1',
-            counterparty: address,
-            data: [lockUntilHeight], // Ensure correct signing data
-            signature: Utils.toArray(script, 'hex') // Placeholder fix
+            keyID: '1', // ✅ Must match deployment keyID
+            counterparty: 'self', // ✅ Matches `createSignature`
+            data: [1], // ✅ Data signed during deployment
+            signature: Utils.toArray(signature, 'hex') // ✅ Extracted from contract
           })
 
           if (!verifyResult.valid) {
-            console.warn(`⚠️ Signature invalid for TXID ${txid}`)
+            console.warn(`⚠️ Signature invalid for output ${i} in TXID ${txid}`)
             continue
           }
 
@@ -102,7 +105,6 @@ export default class HodlockerTopicManager implements TopicManager {
   /**
    * Get metadata about the topic manager
    * @returns A promise that resolves to an object containing metadata
-   * @throws An error indicating the method is not implemented
    */
   async getMetaData(): Promise<{
     name: string

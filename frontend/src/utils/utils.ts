@@ -45,24 +45,53 @@ export const lock = async (
   }
 
   const walletClient = new WalletClient('json-api', 'non-admin.com')
-  const currentBlockHeightObj = await walletClient.getHeight() // Get current block height
-  const keyID = crypto.randomBytes(32).toString('base64')
+  
+  // 🔹 Get Current Block Height
+  const currentBlockHeightObj = await walletClient.getHeight()
+  const lockBlockHeight = currentBlockHeightObj.height + lockBlockCount
+  
+  // 🔹 Generate a Unique Key ID
+  // for testing use '1' 
+  const keyID = '1'
+  //const keyID = crypto.randomBytes(32).toString('base64')
   
   // 🔹 Fetch Public Key from MNC Wallet
-  const publicKey = await walletClient.getPublicKey({
+  const publicKeyResponse = await walletClient.getPublicKey({
     protocolID: [0, 'hodlocker'],
     keyID
   })
-
-  const address = bsv.PublicKey.fromString(publicKey.publicKey).toAddress()
-  const lockBlockHeight = currentBlockHeightObj.height + lockBlockCount
-
-  // 🔹 Create Contract Instance
+  
+  const rawPublicKey = publicKeyResponse.publicKey
+  
+  // 🔹 Validate Public Key Format (Ensure Uncompressed Key)
+  // if (!rawPublicKey.startsWith('04')) {
+  //   throw new Error(`Invalid public key format: ${rawPublicKey}`)
+  // }
+  
+  // 🔹 Convert Public Key to Address
+  const address = bsv.PublicKey.fromString(rawPublicKey).toAddress()
+  
+  // 🔹 Generate Signature for the Contract
+  const signature = Utils.toHex(
+    (
+      await walletClient.createSignature({
+        data: [1], // Adjust if needed
+        protocolID: [0, 'hodlocker'],
+        keyID,
+        counterparty: 'self'
+      })
+    ).signature
+  )
+  
+  // 🔹 Create Hodlocker Contract Instance (Following Meter)
   const instance = new Locksmith(
     Addr(address.toByteString()),
     BigInt(lockBlockHeight),
-    toByteString(message, true)
+    toByteString(signature, false) // Use signature as contract input
   )
+
+  // 🔹 **Log the Auto-Generated Locking Script**
+  console.log('🔹 Generated Locking Script:', instance.lockingScript.toHex())
 
   // 🔹 Deploy Contract & Retrieve Transaction
   const newHodlockerToken = await deployContract(
@@ -72,6 +101,11 @@ export const lock = async (
     BASKET_ID,
     `${keyID},${lockBlockHeight}`
   )
+  
+  // 🔹 Log Results
+  console.log('Generated Locking Script:', instance.lockingScript.toHex())
+  console.log('Hodlocker TXID:', newHodlockerToken.txid)
+  
 
   if (!newHodlockerToken.tx) {
     throw new Error('Failed to deploy contract - no transaction returned.')
