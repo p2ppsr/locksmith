@@ -563,7 +563,7 @@ export const lookupHodlockerByTxid = async (
     // Initialize LookupResolver for Hodlocker service
     const resolver = new LookupResolver({ networkPreset: 'local' })
     const lookupResult = await resolver.query({
-      service: 'tm_hodlocker', // ✅ Service for Hodlocker overlay
+      service: 'ls_hodlocker', // ✅ Service for Hodlocker overlay
       query: { findAll: true }
     })
 
