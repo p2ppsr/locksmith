@@ -1,5 +1,8 @@
 import { Collection, Db } from 'mongodb'
-import { HodlockerRecord, UTXOReference } from '../types.js'
+import { HodlockerRecord } from '../types.js'
+
+// Define UTXOReference as a subset of HodlockerRecord without createdAt
+export type UTXOReference = Omit<HodlockerRecord, 'createdAt'>
 
 // Implements a Lookup Storage Engine for Hodlocker
 export class HodlockerStorage {
@@ -14,26 +17,19 @@ export class HodlockerStorage {
   }
 
   /**
-   * Stores a new Hodlocker record
-   * @param {string} txid - Transaction ID
-   * @param {number} outputIndex - Index of the UTXO
-   * @param {string} address - Address of the locker
-   * @param {bigint} lockUntilHeight - Block height until funds can be redeemed
-   * @param {string} message - Message associated with the lock
+   * Store a Hodlocker record
+   * @param {HodlockerRecord} record - the record to store
    */
-  async storeRecord(
-    txid: string,
-    outputIndex: number,
-    address: string,
-    lockUntilHeight: bigint,
+  async storeRecord(record: {
+    txid: string
+    outputIndex: number
+    address: string
+    lockUntilHeight: number
     message: string
-  ): Promise<void> {
+    beef: number[]
+  }): Promise<void> {
     await this.records.insertOne({
-      txid,
-      outputIndex,
-      address,
-      lockUntilHeight: Number(lockUntilHeight), // Convert bigint to number
-      message,
+      ...record,
       createdAt: new Date()
     })
   }
@@ -49,7 +45,7 @@ export class HodlockerStorage {
 
   /**
    * Returns all active locks for UI display
-   * @returns {Promise<UTXOReference[]>} - List of UTXOs with lock details
+   * @returns {Promise<UTXOReference[]>}
    */
   async findAll(): Promise<UTXOReference[]> {
     return await this.records
@@ -62,24 +58,28 @@ export class HodlockerStorage {
         message: 1
       })
       .toArray()
-      .then(results =>
-        results.map(record => ({
-          txid: record.txid,
-          outputIndex: record.outputIndex,
-          address: record.address,
-          lockUntilHeight: record.lockUntilHeight,
-          message: record.message
-        }))
-      )
   }
 
-  // ✅ Add findByTxid to lookup lock by txid
-  async findByTxid(txid: string) {
-    return await this.db.collection('hodlocker').findOne({ txid })
+  /**
+   * Lookup a lock by txid and optional outputIndex
+   * @param {string} txid
+   * @param {number} [outputIndex]
+   * @returns {Promise<HodlockerRecord | null>}
+   */
+  async findByTxid(
+    txid: string,
+    outputIndex?: number
+  ): Promise<HodlockerRecord | null> {
+    const query = outputIndex !== undefined ? { txid, outputIndex } : { txid }
+    return await this.records.findOne(query)
   }
 
-  // ✅ Add findByAddress to lookup all locks by address
-  async findByAddress(address: string) {
-    return await this.db.collection('hodlocker').find({ address }).toArray()
+  /**
+   * Lookup all locks by address
+   * @param {string} address
+   * @returns {Promise<HodlockerRecord[]>}
+   */
+  async findByAddress(address: string): Promise<HodlockerRecord[]> {
+    return await this.records.find({ address }).toArray()
   }
 }

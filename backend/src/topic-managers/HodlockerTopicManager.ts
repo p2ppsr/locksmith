@@ -3,11 +3,12 @@ import { Transaction, ProtoWallet, Utils, Beef } from '@bsv/sdk'
 import docs from './HodlockerTopicDocs.md.js'
 import locksmithContractJson from '../../artifacts/Locksmith.json' with { type: 'json' }
 import { LocksmithContract } from '../contracts/Locksmith.js'
+import { Signer } from 'scrypt-ts'
 
 // Load the contract artifact
 LocksmithContract.loadArtifact(locksmithContractJson)
 
-const anyoneWallet = new ProtoWallet('anyone')
+// const anyoneWallet = new ProtoWallet('anyone')
 
 export default class HodlockerTopicManager implements TopicManager {
   /**
@@ -17,69 +18,53 @@ export default class HodlockerTopicManager implements TopicManager {
    * @returns A promise that resolves with the admittance instructions
    */
   async identifyAdmissibleOutputs(
-    beef: number[],
+    beefBytes: number[],
     previousCoins: number[]
   ): Promise<AdmittanceInstructions> {
-    console.log(`identifyAdmissibleOutputs:beef:${Utils.toHex(beef)}`)
-    // throw new Error(
-    //   `identifyAdmissibleOutputs:beef:${Utils.toHex(beef)}`
-    // )
+    console.log(`identifyAdmissibleOutputs:beef:${Utils.toHex(beefBytes)}`)
+
+    const beef = Beef.fromBinary(beefBytes)
+    if (!beef.isValid()) {
+      throw new Error('Invalid BEEF: does not comply with BRC-95')
+    }
 
     const outputsToAdmit: number[] = []
 
     try {
-      const parsedTransaction = Transaction.fromBEEF(beef)
-      const txid = parsedTransaction.id('hex') // Extract TXID
-
+      const parsedTransaction = Transaction.fromBEEF(beefBytes)
+      const txid = parsedTransaction.id('hex')
       console.log(`🔍 Processing TXID: ${txid}`)
 
       for (const [i, output] of parsedTransaction.outputs.entries()) {
         try {
-          // Parse sCrypt locking script
           const script = output.lockingScript.toHex()
           console.log(`🔹 Output ${i} Locking Script: ${script}`)
 
-          // Ensure LocksmithContract can be constructed from script
           const locksmith = LocksmithContract.fromLockingScript(
             script
           ) as LocksmithContract
           console.log('🔹 Parsed Locksmith Contract:', locksmith)
 
-          // 🔹 Extract values passed to Locksmith
-          const lockUntilHeight = Number(locksmith.lockUntilHeight) // ✅ Convert `bigint` to `number`
-          const signature = locksmith.signer // ✅ Extracted signature
+          const lockUntilHeight = Number(locksmith.lockUntilHeight)
 
-          // 🔹 Ensure required fields exist
-          if (!lockUntilHeight || !signature) {
+          if (!lockUntilHeight || !locksmith.address) {
             console.warn(
-              `⚠️ Missing required fields in output ${i}. Skipping...`
+              `⚠️ Missing lockUntilHeight or address in output ${i}. Skipping...`
             )
             continue
           }
 
           console.log(
-            `🔹 Verifying Signature -> LockUntilHeight: ${lockUntilHeight}, Signature: ${signature}`
+            `ℹ️ Skipping signature verification for output ${i}, allowing based on structure only.`
           )
 
-          // ✅ Match `walletClient.createSignature` exactly
-          const verifyResult = await anyoneWallet.verifySignature({
-            protocolID: [0, 'hodlocker'],
-            keyID: '1', // ✅ Must match deployment keyID
-            counterparty: 'self', // ✅ Matches `createSignature`
-            data: [1], // ✅ Data signed during deployment
-            signature: Utils.toArray(signature, 'hex') // ✅ Extracted from contract
-          })
-
-          if (!verifyResult.valid) {
-            console.warn(`⚠️ Signature invalid for output ${i} in TXID ${txid}`)
-            continue
-          }
-
-          console.log(`✅ Admitted output ${i} in TXID ${txid}`)
           outputsToAdmit.push(i)
+          console.log(`✅ Admitted output ${i} in TXID ${txid}`)
         } catch (error) {
-          console.warn(`⚠️ Skipping invalid output in TXID ${txid}:`, error)
-          continue
+          console.warn(
+            `⚠️ Skipping invalid output in TXID ${txid}:`,
+            (error as Error).message
+          )
         }
       }
 

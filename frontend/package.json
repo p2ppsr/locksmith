@@ -24,6 +24,7 @@
     "use-async-effect": "^2.2.7"
   },
   "scripts": {
+    "lint": "ts-standard --fix src/**/*.ts",
     "start": "webpack serve --config webpack.dev.js",
     "build": "webpack --config webpack.prod.js",
     "compile": "npx scrypt-cli compile"

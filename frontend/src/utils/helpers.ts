@@ -12,6 +12,7 @@ import {
   HexString
 } from '@bsv/sdk'
 import { lookupHodlockerByTxid } from './utils'
+import { Locksmith } from '@bsv/backend'
 
 /**
  * Verify a variable is not null or undefined.
@@ -105,10 +106,9 @@ export interface ListResult<T extends SmartContract> {
 export const listContracts = async <T extends SmartContract>(
   basket: string,
   contractHydrator: (lockingScript: string) => T
-): Promise<ListResult<T>[]> => {
+): Promise<Array<ListResult<T>>> => {
   const walletClient = new WalletClient('json-api', 'non-admin.com')
 
-  // ✅ Fetch outputs
   const listOutputResults = await walletClient.listOutputs({
     basket,
     includeCustomInstructions: true
@@ -116,7 +116,6 @@ export const listContracts = async <T extends SmartContract>(
 
   console.log('🔍 Full listOutputs response:', listOutputResults)
 
-  // ✅ Use `Promise.all` to resolve `lookupHodlockerByTxid` in parallel
   const contracts = await Promise.all(
     listOutputResults.outputs.map(async output => {
       if (!output.outpoint) {
@@ -125,27 +124,32 @@ export const listContracts = async <T extends SmartContract>(
       }
 
       const [txid] = output.outpoint.split('.') // Extract TXID
+      const token = await lookupHodlockerByTxid(txid)
 
-      // 🔍 Lookup BEEF using TXID
-      const hodlockerData = await lookupHodlockerByTxid(txid)
-      if (!hodlockerData) {
-        console.warn(`⚠️ No BEEF found for txid: ${txid}`)
+      if (!token) {
+        console.warn('No token returned.')
         return null
       }
 
-      // ✅ Hydrate contract using retrieved lockingScript
-      const contract = contractHydrator(hodlockerData.lockingScript)
+      if (!token.lockingScript) {
+        console.warn('⚠️ Token has no locking script. Cannot decode.')
+        return null
+      }
+
+      // ✅ Decode with proper lockingScript
+      const hodlocker = Locksmith.fromLockingScript(token.lockingScript)
+
+      const contract = contractHydrator(hodlocker.lockingScript.toHex()) // Fix: convert Script to string
 
       return {
         contract,
         txid,
-        BEEF: hodlockerData.atomicBeefTX,
-        outputs: listOutputResults.outputs // ✅ Ensure outputs are available
+        // ❌ Removed atomicBeefTX unless it's part of your custom Token object
+        outputs: listOutputResults.outputs
       }
     })
   )
 
-  // ✅ Return filtered results
   return contracts.filter((result): result is ListResult<T> => result !== null)
 }
 
@@ -219,7 +223,7 @@ export const redeemContract = async (
     })
 
     // Log outputs if provided
-    if (outputs) {
+    if (outputs != null) {
       console.log('📤 Outputs:', outputs)
     }
 

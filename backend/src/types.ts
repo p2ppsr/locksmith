@@ -1,18 +1,13 @@
-import { HexString, PositiveInteger, PubKeyHex } from '@bsv/sdk'
+import { PositiveInteger, PubKeyHex, TXIDHexString } from '@bsv/sdk'
 
 export interface HodlockerRecord {
-  txid: string
-  outputIndex: PositiveInteger
-  address: PubKeyHex
-  lockUntilHeight: PositiveInteger // Convert bigint to number for MongoDB storage
-  message: string
-  createdAt: Date
-}
-
-export interface UTXOReference {
-  txid: HexString
+  txid: TXIDHexString
   outputIndex: PositiveInteger
   address: PubKeyHex
   lockUntilHeight: PositiveInteger
   message: string
+  createdAt: Date
+  beef: number[]
 }
+
+export type UTXOReference = Omit<HodlockerRecord, 'createdAt'>

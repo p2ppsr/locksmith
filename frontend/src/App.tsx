@@ -49,7 +49,13 @@ export const App: React.FC = () => {
         const lockList = await list(walletClient)
         if (lockList !== null) {
           setLocks(
-            lockList as Array<{ sats: number; left: number; message: string }>
+            [
+              ...(lockList as Array<{
+                sats: number
+                left: number
+                message: string
+              }>)
+            ].sort((a, b) => a.left - b.left)
           )
         }
       } catch (e) {
@@ -67,7 +73,13 @@ export const App: React.FC = () => {
         const lockList = await list(walletClient)
         if (lockList !== null) {
           setLocks(
-            lockList as Array<{ sats: number; left: number; message: string }>
+            [
+              ...(lockList as Array<{
+                sats: number
+                left: number
+                message: string
+              }>)
+            ].sort((a, b) => a.left - b.left)
           )
         }
       } catch (e) {
