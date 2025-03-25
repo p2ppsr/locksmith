@@ -20,7 +20,7 @@ import { toast } from 'react-toastify'
 import { HodlockerToken, Token } from '../types/types'
 import { TXIDHexString } from '@babbage/sdk-ts/out/src/sdk'
 
-const BASKET_ID = 'hodlocker5'
+const BASKET_ID = 'hodlocker6'
 
 Locksmith.loadArtifact(LocksmithArtifact)
 
@@ -82,7 +82,7 @@ satoshis: number, lockBlockCount: number, message: string, setHodlocker: React.D
         outputDescription: 'Hodlocker output'
       }
     ],
-    options: { noSend: true, randomizeOutputs: false }
+    options: { randomizeOutputs: false }
   })
 
   if (!newHodlockerToken.tx) {
@@ -355,16 +355,11 @@ export const startBackgroundUnlockWatchman = async (
 
       // ✅ 3. Process each contract
       for (const contract of contracts) {
-        if (!contract.outputs[0]?.customInstructions) {
-          console.log(`⚠️ Skipping contract ${contract.txid}, missing customInstructions`)
-          continue
-        }
+        // ✅ Extract required fields directly from contract and HodlockerToken
+        const keyID = '1' //contract.contract.keyID
+        const lockBlockHeight = contract.contract.lockUntilHeight
 
-        const customInstructions = contract.outputs[0].customInstructions.split(',')
-        const keyID = customInstructions[0]
-        const lockBlockHeight = Number(customInstructions[1])
-
-        console.log(`🔄 Checking contract ${contract.txid}: LockHeight=${lockBlockHeight}, Current=${currentBlockHeight.height}`)
+        console.log(`🔄 Checking contract ${contract.txid}: LockHeight=${lockBlockHeight}, CurrentHeight=${currentBlockHeight.height}, keyID=${keyID}`)
 
         if (currentBlockHeight.height < lockBlockHeight) {
           console.log(`🔒 Contract ${contract.txid} still locked, skipping.`)
@@ -452,11 +447,15 @@ export const startBackgroundUnlockWatchman = async (
         // ✅ 6. Execute redeemContract
         try {
           console.log(`🚀 Executing redeemContract for ${contract.txid}`)
+          // 📌 Generate redemption hex for manual submission
+          const redemptionHex = fromTx.toString()
+          console.log(`📜 Redemption Hex for manual broadcast (Whatsonchain):\n${redemptionHex}`)
+
           await redeemContract(
             contract,
             redeemHydrator,
             'Recover previously-locked coins',
-            lockBlockHeight,
+            Number(lockBlockHeight),
             0xfffffffe
           )
           console.log(`✅ Successfully redeemed ${contract.txid}`)
@@ -474,6 +473,7 @@ export const startBackgroundUnlockWatchman = async (
     await new Promise(resolve => setTimeout(resolve, 18000))
   }
 }
+
 
 
 /**

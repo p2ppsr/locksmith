@@ -54,11 +54,11 @@ export class HodlockerStorage {
       .find({})
       .project<UTXOReference>({
         txid: 1,
-        outputIndex: 1,
-        address: 1,
-        lockUntilHeight: 1,
-        message: 1,
-        token: 1 // Include full token except BEEF
+        outputIndex: 1
+        // address: 1,
+        // lockUntilHeight: 1,
+        // message: 1,
+        // token: 1 // Include full token except BEEF
       })
       .toArray()
   }

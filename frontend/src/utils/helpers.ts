@@ -282,6 +282,7 @@ export const redeemContract = async (
   customSequenceNumber = 0xffffffff,
   outputs?: CreateActionOutput[]
 ): Promise<CreateActionResult> => {
+  console.log('redeemContract')
   const walletClient = new WalletClient('json-api', 'non-admin.com')
 
   try {
@@ -327,6 +328,7 @@ export const redeemContract = async (
           inputDescription: 'Unlocking Hodlocker'
         }
       ],
+      inputBEEF: Utils.toArray(listResult.BEEF),
       description,
       lockTime: customLockTime,
       outputs

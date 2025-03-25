@@ -47,33 +47,34 @@ export const App: React.FC = () => {
     const fetchHodlockerTokensDirectly = async () => {
       try {
         console.log('🔍 Fetching Hodlocker tokens via direct fetch...')
+        let lookupResult: any = undefined
 
-        const response = await fetch('http://localhost:8080/lookup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        try {
+          const resolver = new LookupResolver({ networkPreset: 'local' })
+          lookupResult = await resolver.query({
             service: 'ls_hodlocker',
             query: { findAll: true }
           })
-        })
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`)
+          // Check if the lookup returned a valid output-list
+          if (!lookupResult || lookupResult.type !== 'output-list') {
+            throw new Error('Wrong result type!')
+          }
+        } catch (e) {
+          console.error('❌ Lookup error:', e)
         }
 
-        const lookupResult = await response.json()
-        console.log(
-          '✅ Direct fetch result:',
-          JSON.stringify(lookupResult, null, 2)
-        )
-
-        // Check if lookup result is valid
-        if (!lookupResult || lookupResult.type !== 'output-list') {
-          throw new Error('❌ Invalid result type from lookup!')
-        }
-
+        // ✅ If lookupResult is empty, fallback to findAll()
         if (!lookupResult?.outputs || lookupResult.outputs.length === 0) {
-          console.warn('⚠️ No locked tokens found in lookup!')
+          console.warn(
+            '⚠️ No locked tokens found in lookup! Trying findAllLockedTokens()...'
+          )
+          lookupResult = await findAllLockedTokens() // 🔥 Fetch from DB if lookup fails
+          console.log(`📦 findAllLockedTokens:lookupResult: ${lookupResult}`)
+        }
+
+        if (!lookupResult || lookupResult.outputs.length === 0) {
+          console.warn('⚠️ Still no locked tokens found after findAll()!')
           return
         }
 
@@ -336,6 +337,46 @@ export const App: React.FC = () => {
       </center>
     </Container>
   )
+}
+
+export const findAllLockedTokens = async () => {
+  console.log('🔍 Running findAllLockedTokens()...')
+  try {
+    const res = await fetch('http://localhost:8080/lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service: 'ls_hodlocker',
+        query: { findAll: true }
+      })
+    })
+
+    const data = await res.json()
+    console.log('🔎 Lookup result:', data)
+
+    if (!data || data.type !== 'output-list' || !data.outputs) {
+      console.warn('⚠️ No Hodlocker records for findAll')
+      return [] // ✅ Always return an empty array instead of undefined
+    }
+    return data
+
+    // try {
+    //   const resolver = new LookupResolver({ networkPreset: 'local' })
+    //   const lookupResult = await resolver.query({
+    //     service: 'ls_hodlocker',
+    //     query: { findAll: true }
+    //   })
+
+    //   if (!lookupResult || lookupResult.type !== 'output-list') {
+    //     console.warn('⚠️ findAllLockedTokens: No valid output list found.')
+    //     return { outputs: [] }
+    //   }
+
+    //   return lookupResult
+  } catch (error) {
+    console.error('❌ ERROR in findAllLockedTokens:', error)
+    return { outputs: [] }
+  }
 }
 
 export default App
