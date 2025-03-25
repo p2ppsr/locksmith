@@ -7,7 +7,9 @@ export interface HodlockerRecord {
   lockUntilHeight: PositiveInteger
   message: string
   createdAt: Date
-  beef: number[]
 }
 
-export type UTXOReference = Omit<HodlockerRecord, 'createdAt'>
+export interface UTXOReference {
+  txid: string
+  outputIndex: number
+}

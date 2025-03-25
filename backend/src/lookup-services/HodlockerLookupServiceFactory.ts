@@ -64,15 +64,13 @@ export class HodlockerLookupService implements LookupService {
         message
       })
 
-      await this.storage.storeRecord({
+      await this.storage.storeRecord(
         txid,
         outputIndex,
         address,
         lockUntilHeight,
-        message,
-        createdAt: new Date(),
-        beef: []
-      })
+        message
+      )
     } catch (e) {
       console.error('[ERROR] outputAdded() failed:', e)
     }
@@ -131,19 +129,18 @@ export class HodlockerLookupService implements LookupService {
       throw new Error('Lookup service not supported!')
     }
 
-    const query = question.query as { findAll?: boolean }
-    if (query.findAll) {
-      console.log(`[HodlockerLookupService] Fetching all Hodlocker records`)
-      return {
-        type: 'output-list',
-        outputs: await this.storage.findAll()
-      }
+    const query = question.query as {
+      txid?: string
+      address: string
+      lockUntilHeight: number
+      message: string
+      findAll?: boolean
     }
-
-    console.error(
-      `[HodlockerLookupService] Invalid lookup query: ${JSON.stringify(question)}`
-    )
-    throw new Error(`Invalid lookup query: ${JSON.stringify(question)}`)
+    if (query.findAll) {
+      return await this.storage.findAll()
+    }
+    const mess = JSON.stringify(question, null, 2)
+    throw new Error(`question.query:${mess}}`)
   }
 
   async getDocumentation(): Promise<string> {

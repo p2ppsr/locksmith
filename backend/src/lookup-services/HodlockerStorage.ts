@@ -17,13 +17,20 @@ export class HodlockerStorage {
    * Store a full Hodlocker token, including serialized BEEF.
    * @param {HodlockerRecord} record - the full Hodlocker token record.
    */
-  async storeRecord(record: HodlockerRecord): Promise<void> {
-    console.log(
-      '[DEBUG] storeRecord() called with:',
-      JSON.stringify(record, null, 2)
-    )
+  async storeRecord(
+    txid: string,
+    outputIndex: number,
+    address: string,
+    lockUntilHeight: number,
+    message: string
+  ): Promise<void> {
+    // Insert new record
     await this.records.insertOne({
-      ...record,
+      txid,
+      outputIndex,
+      address,
+      lockUntilHeight,
+      message,
       createdAt: new Date()
     })
   }
@@ -52,14 +59,13 @@ export class HodlockerStorage {
   async findAll(): Promise<UTXOReference[]> {
     return await this.records
       .find({})
-      .project<UTXOReference>({
-        txid: 1,
-        outputIndex: 1
-        // address: 1,
-        // lockUntilHeight: 1,
-        // message: 1,
-        // token: 1 // Include full token except BEEF
-      })
+      .project<UTXOReference>({ txid: 1, outputIndex: 1 })
       .toArray()
+      .then(results =>
+        results.map(record => ({
+          txid: record.txid,
+          outputIndex: record.outputIndex
+        }))
+      )
   }
 }
