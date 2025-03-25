@@ -13,6 +13,7 @@ import {
 } from '@bsv/sdk'
 import { lookupHodlockerByTxid } from './utils'
 import { Locksmith } from '@bsv/backend'
+import { HodlockerToken } from '../types/types'
 
 /**
  * Verify a variable is not null or undefined.
@@ -96,61 +97,150 @@ export interface ListResult<T extends SmartContract> {
   outputs: WalletOutput[] // ✅ Ensure compatibility with redeemContract
 }
 
+interface ExtendedLocksmith extends Locksmith {
+  keyID: string
+  signature: string
+  lockUntilHeight: bigint
+  message: string
+  // ❌ don't override `address` type here
+}
+
 /**
  * List all instances of a specific smart contract in the basket.
  *
- * @param {string} basket - The basket name where the contracts are expected.
- * @param {(lockingScript: string) => T} contractHydrator - Function that hydrates the contract from a locking script.
- * @returns {Promise<ListResult<T>[]>} - Promise resolving an array of list results with the hydrated contracts.
+ * @param {(lockingScriptHex: string) => T} contractHydrator - Function to rehydrate a contract from lockingScript hex.
+ * @returns {Promise<ListResult<T>[]>} Array of list results with contracts and metadata.
  */
 export const listContracts = async <T extends SmartContract>(
-  basket: string,
-  contractHydrator: (lockingScript: string) => T
-): Promise<Array<ListResult<T>>> => {
+  BASKET_ID: string,
+  hodlocker: HodlockerToken[],
+  contractHydrator: (lockingScriptHex: string) => T
+): Promise<ListResult<T>[]> => {
+  console.log(`📡 listContracts started for basket: ${BASKET_ID}`)
+
   const walletClient = new WalletClient('json-api', 'non-admin.com')
 
-  const listOutputResults = await walletClient.listOutputs({
-    basket,
-    includeCustomInstructions: true
-  })
+  try {
+    console.log(`🔍 Calling walletClient.listOutputs for basket: ${BASKET_ID}`)
 
-  console.log('🔍 Full listOutputs response:', listOutputResults)
-
-  const contracts = await Promise.all(
-    listOutputResults.outputs.map(async output => {
-      if (!output.outpoint) {
-        console.warn('⚠️ Skipping contract with missing outpoint:', output)
-        return null
-      }
-
-      const [txid] = output.outpoint.split('.') // Extract TXID
-      const token = await lookupHodlockerByTxid(txid)
-
-      if (!token) {
-        console.warn('No token returned.')
-        return null
-      }
-
-      if (!token.lockingScript) {
-        console.warn('⚠️ Token has no locking script. Cannot decode.')
-        return null
-      }
-
-      // ✅ Decode with proper lockingScript
-      const hodlocker = Locksmith.fromLockingScript(token.lockingScript)
-
-      const contract = contractHydrator(hodlocker.lockingScript.toHex()) // Fix: convert Script to string
-
-      return {
-        contract,
-        txid,
-        // ❌ Removed atomicBeefTX unless it's part of your custom Token object
-        outputs: listOutputResults.outputs
-      }
+    const listOutputResults = await walletClient.listOutputs({
+      basket: BASKET_ID,
+      include: 'locking scripts'
     })
-  )
 
-  return contracts.filter((result): result is ListResult<T> => result !== null)
+    console.log(
+      `✅ listOutputs SUCCESS for ${BASKET_ID}:`,
+      JSON.stringify(listOutputResults, null, 2) // Log full response
+    )
+
+    if (!listOutputResults.outputs || listOutputResults.outputs.length === 0) {
+      console.warn(`⚠️ No outputs found in basket: ${BASKET_ID}`)
+      return []
+    }
+
+    type WalletOutputWithBeef = WalletOutput & { atomicBeefTX: HexString }
+    const outputs = listOutputResults.outputs as WalletOutputWithBeef[]
+
+    console.log(
+      `📦 Processing ${outputs.length} outputs from walletClient.listOutputs`
+    )
+
+    const results = await Promise.all(
+      outputs.map(async (output, index) => {
+        console.log(`🔹 Processing output #${index}:`, output)
+
+        if (!output.outpoint || !output.lockingScript) {
+          console.warn(
+            `⚠️ Skipping output #${index} due to missing fields:`,
+            output
+          )
+          return null
+        }
+
+        // ✅ Find the matching stored token using txid
+        const txid = output.outpoint.split('.')[0]
+        const matchingToken = hodlocker.find(t => {
+          console.log(
+            `🔎 Checking stored token txid: ${t.token.txid} vs output txid: ${
+              output.outpoint.split('.')[0]
+            }`
+          )
+          return t.token.txid === output.outpoint.split('.')[0]
+        })
+
+        if (!matchingToken) {
+          console.warn(`⚠️ No stored token found for txid: ${txid}`)
+          return null
+        }
+
+        console.log(`✅ Found matching stored token for txid: ${txid}`)
+
+        const [txidFull, voutStr] = output.outpoint.split('.')
+        const outputIndex = parseInt(voutStr)
+
+        let hodlockerContract: ExtendedLocksmith
+        try {
+          hodlockerContract = Locksmith.fromLockingScript(
+            output.lockingScript
+          ) as ExtendedLocksmith
+          console.log(
+            `🔑 Successfully parsed Hodlocker contract for output #${index}`
+          )
+        } catch (e) {
+          console.warn(
+            `❌ Failed to parse contract from script at output #${index}: ${
+              (e as Error).message
+            }`
+          )
+          return null
+        }
+
+        const contract = contractHydrator(output.lockingScript)
+
+        const token: HodlockerToken = {
+          token: {
+            atomicBeefTX: matchingToken.token.atomicBeefTX, // ✅ Retrieve from stored hodlocker
+            txid: txidFull,
+            outputIndex,
+            lockingScript: output.lockingScript,
+            satoshis: output.satoshis
+          },
+          keyID: hodlockerContract.keyID,
+          signature: hodlockerContract.signature,
+          lockUntilHeight: Number(hodlockerContract.lockUntilHeight),
+          message: hodlockerContract.message,
+          address:
+            hodlockerContract.address.toString?.() ??
+            String(hodlockerContract.address)
+        }
+
+        console.log(
+          `✅ Token successfully created for output #${index}:`,
+          token
+        )
+
+        return {
+          contract,
+          txid: txidFull,
+          BEEF: token.token.atomicBeefTX, // ✅ Now correctly sourced
+          outputs: [output]
+        } as ListResult<T>
+      })
+    )
+
+    console.log(
+      `✅ Final processed results:`,
+      results.filter(r => r !== null)
+    )
+
+    return results.filter((result): result is ListResult<T> => result !== null)
+  } catch (error) {
+    console.error(
+      `❌ ERROR in listContracts for basket ${BASKET_ID}:`,
+      (error as Error).message
+    )
+    return []
+  }
 }
 
 //   export const listContracts_old = async <T extends SmartContract>(

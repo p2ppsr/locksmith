@@ -6,20 +6,21 @@ import {
 } from '@bsv/overlay'
 import { HodlockerStorage } from './HodlockerStorage.js'
 import { Script } from '@bsv/sdk'
-import { Beef, BEEF_V2 } from '@bsv/sdk'
 import docs from './HodlockerLookupDocs.md.js'
 import locksmithContractJson from '../../artifacts/Locksmith.json' with { type: 'json' }
 import { LocksmithContract } from '../contracts/Locksmith.js'
 import { Db } from 'mongodb'
 
-// Load the contract artifact
+// Load contract artifact
 LocksmithContract.loadArtifact(locksmithContractJson)
 
 /**
  * Implements a Hodlocker lookup service
  */
-class HodlockerLookupService implements LookupService {
-  constructor(public storage: HodlockerStorage) {}
+export class HodlockerLookupService implements LookupService {
+  constructor(public storage: HodlockerStorage) {
+    console.log('[HodlockerLookupService] Initialized')
+  }
 
   async outputAdded?(
     txid: string,
@@ -27,25 +28,27 @@ class HodlockerLookupService implements LookupService {
     outputScript: Script,
     topic: string
   ): Promise<void> {
-    if (topic !== 'tm_hodlocker') return
+    console.log('[DEBUG] outputAdded() triggered with:', {
+      txid,
+      outputIndex,
+      topic
+    })
 
-    console.log(`📥 outputAdded called for ${txid}:${outputIndex}`)
+    if (topic !== 'tm_hodlocker') {
+      console.log('[DEBUG] outputAdded() skipping due to topic:', topic)
+      return
+    }
 
     try {
-      const lockingScriptHex = outputScript.toHex()
-      console.log(`🔐 Locking script: ${lockingScriptHex}`)
-
       const hodlocker = LocksmithContract.fromLockingScript(
-        lockingScriptHex
+        outputScript.toHex()
       ) as LocksmithContract
-      console.log('🔎 Parsed Hodlocker Contract:', hodlocker)
-
       const address = hodlocker.address?.toString()
       const lockUntilHeight = Number(hodlocker.lockUntilHeight)
       const message = hodlocker.message
 
       if (!address || !lockUntilHeight || !message) {
-        console.warn(`⚠️ Skipping due to invalid fields`, {
+        console.log('[DEBUG] outputAdded() missing fields:', {
           address,
           lockUntilHeight,
           message
@@ -53,30 +56,25 @@ class HodlockerLookupService implements LookupService {
         return
       }
 
-      const existing = await this.storage.findByTxid(txid, outputIndex)
-      if (existing) {
-        console.log(`🔁 Skipping duplicate record ${txid}:${outputIndex}`)
-        return
-      }
+      console.log('[DEBUG] Storing Hodlocker record:', {
+        txid,
+        outputIndex,
+        address,
+        lockUntilHeight,
+        message
+      })
 
-      const beef = new Beef(BEEF_V2)
-      beef.mergeTxidOnly(txid)
-
-      console.log(`💾 Storing new Hodlocker token: ${txid}:${outputIndex}`)
       await this.storage.storeRecord({
         txid,
         outputIndex,
         address,
         lockUntilHeight,
         message,
-        beef: beef.toBinary()
+        createdAt: new Date(),
+        beef: []
       })
-      console.log(`✅ Successfully stored ${txid}:${outputIndex}`)
     } catch (e) {
-      console.error(
-        `❌ Error indexing Hodlocker token for ${txid}:${outputIndex}`,
-        e
-      )
+      console.error('[ERROR] outputAdded() failed:', e)
     }
   }
 
@@ -85,8 +83,16 @@ class HodlockerLookupService implements LookupService {
     outputIndex: number,
     topic: string
   ): Promise<void> {
-    if (topic !== 'tm_hodlocker') return
-    await this.storage.deleteRecord(txid, outputIndex)
+    console.log(
+      `[HodlockerLookupService] outputSpent called for txid: ${txid}, outputIndex: ${outputIndex}, topic: ${topic}`
+    )
+
+    if (topic === 'tm_hodlocker') {
+      console.log(
+        `[HodlockerLookupService] Deleting Hodlocker record for spent output: txid=${txid}, outputIndex=${outputIndex}`
+      )
+      await this.storage.deleteRecord(txid, outputIndex)
+    }
   }
 
   async outputDeleted?(
@@ -94,69 +100,50 @@ class HodlockerLookupService implements LookupService {
     outputIndex: number,
     topic: string
   ): Promise<void> {
-    if (topic !== 'tm_hodlocker') return
-    await this.storage.deleteRecord(txid, outputIndex)
+    console.log(
+      `[HodlockerLookupService] outputDeleted called for txid: ${txid}, outputIndex: ${outputIndex}, topic: ${topic}`
+    )
+
+    if (topic === 'tm_hodlocker') {
+      console.log(
+        `[HodlockerLookupService] Deleting Hodlocker record for deleted output: txid=${txid}, outputIndex=${outputIndex}`
+      )
+      await this.storage.deleteRecord(txid, outputIndex)
+    }
   }
 
   async lookup(
     question: LookupQuestion
   ): Promise<LookupAnswer | LookupFormula> {
-    if (question.query == null) {
-      throw new Error('❌ A valid query must be provided!')
+    console.log(
+      `[HodlockerLookupService] lookup called with question: ${JSON.stringify(question)}`
+    )
+
+    if (!question.query) {
+      console.error(`[HodlockerLookupService] Invalid query received`)
+      throw new Error('A valid query must be provided!')
     }
+
     if (question.service !== 'ls_hodlocker') {
-      throw new Error('❌ Lookup service not supported!')
+      console.error(
+        `[HodlockerLookupService] Unsupported lookup service: ${question.service}`
+      )
+      throw new Error('Lookup service not supported!')
     }
 
-    const query = question.query as {
-      txid?: string
-      address?: string
-      findAll?: boolean
-    }
-
-    if (query.txid) {
-      console.log(`🔍 Lookup by TXID: ${query.txid}`)
-      const record = await this.storage.findByTxid(query.txid)
-
-      if (!record) {
-        return { type: 'output-list', outputs: [] }
-      }
-
-      return {
-        type: 'output-list',
-        outputs: [
-          {
-            beef: record.beef,
-            outputIndex: record.outputIndex
-          }
-        ]
-      }
-    }
-
-    if (query.address) {
-      console.log(`🔍 Lookup by Address: ${query.address}`)
-      const records = await this.storage.findByAddress(query.address)
-
-      return {
-        type: 'output-list',
-        outputs: records.map(record => ({
-          beef: record.beef,
-          outputIndex: record.outputIndex
-        }))
-      }
-    }
-
+    const query = question.query as { findAll?: boolean }
     if (query.findAll) {
-      console.log(`🔍 Lookup all Hodlocker records`)
+      console.log(`[HodlockerLookupService] Fetching all Hodlocker records`)
       return {
         type: 'output-list',
         outputs: await this.storage.findAll()
       }
     }
 
-    throw new Error(
-      `❌ Invalid lookup query: ${JSON.stringify(question, null, 2)}`
+    console.error(
+      `[HodlockerLookupService] Invalid lookup query: ${JSON.stringify(question)}`
     )
+    throw new Error(`Invalid lookup query: ${JSON.stringify(question)}`)
   }
 
   async getDocumentation(): Promise<string> {
@@ -172,7 +159,7 @@ class HodlockerLookupService implements LookupService {
   }> {
     return {
       name: 'Hodlocker Lookup Service',
-      shortDescription: 'Lock your coins for a set period.'
+      shortDescription: 'Manages Hodlocker locks and retrievals.'
     }
   }
 }

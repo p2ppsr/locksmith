@@ -11,9 +11,10 @@ import useAsyncEffect from 'use-async-effect'
 //import checkForMetaNetClient from './utils/checkForMetaNetClient'
 import { NoMncModal } from 'metanet-react-prompt'
 
-import { WalletClient } from '@bsv/sdk'
-import { Token } from './types/types'
-;(window as any).startBackgroundUnlockWatchman = startBackgroundUnlockWatchman
+import { LookupResolver, Transaction, Utils, WalletClient } from '@bsv/sdk'
+import { HodlockerToken, Token } from './types/types'
+import { Locksmith } from '@bsv/backend'
+import { listContracts } from './utils/helpers'
 
 export const App: React.FC = () => {
   const [isMncMissing, setIsMncMissing] = useState<boolean>(false)
@@ -25,7 +26,7 @@ export const App: React.FC = () => {
   const [locks, setLocks] = useState<
     Array<{ sats: number; left: number; message: string }>
   >([])
-  const [hodlocker, setHodlocker] = useState<Token[]>([])
+  const [hodlocker, setHodlocker] = useState<HodlockerToken[]>([])
 
   // useAsyncEffect(async () => {
   //   const intervalId = setInterval(async () => {
@@ -42,57 +43,138 @@ export const App: React.FC = () => {
   //   }
   // }, [])
 
-  useEffect(() => {
-    const loadLocks = async (): Promise<void> => {
-      const walletClient = new WalletClient('json-api', 'non-admin.com')
+  useAsyncEffect(() => {
+    const fetchHodlockerTokensDirectly = async () => {
       try {
-        const lockList = await list(walletClient)
-        if (lockList !== null) {
-          setLocks(
-            [
-              ...(lockList as Array<{
-                sats: number
-                left: number
-                message: string
-              }>)
-            ].sort((a, b) => a.left - b.left)
-          )
+        console.log('🔍 Fetching Hodlocker tokens via direct fetch...')
+
+        const response = await fetch('http://localhost:8080/lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            service: 'ls_hodlocker',
+            query: { findAll: true }
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`)
         }
-      } catch (e) {
-        console.error('Error loading locks:', e)
+
+        const lookupResult = await response.json()
+        console.log(
+          '✅ Direct fetch result:',
+          JSON.stringify(lookupResult, null, 2)
+        )
+
+        // Check if lookup result is valid
+        if (!lookupResult || lookupResult.type !== 'output-list') {
+          throw new Error('❌ Invalid result type from lookup!')
+        }
+
+        if (!lookupResult?.outputs || lookupResult.outputs.length === 0) {
+          console.warn('⚠️ No locked tokens found in lookup!')
+          return
+        }
+
+        console.log(`📦 Found ${lookupResult.outputs.length} locked tokens`)
+
+        const parsedResults: HodlockerToken[] = []
+
+        for (const result of lookupResult.outputs) {
+          try {
+            console.log(`🔍 Processing result: ${JSON.stringify(result)}`)
+
+            const tx = Transaction.fromBEEF(result.beef)
+            console.log(`📜 Parsed transaction from BEEF: ${tx.id('hex')}`)
+
+            const script = tx.outputs[
+              Number(result.outputIndex)
+            ].lockingScript.toHex()
+            console.log('🔏 Extracted locking script:', script)
+
+            const hodlocker = Locksmith.fromLockingScript(script)
+            console.log('🔑 Hodlocker contract parsed:', hodlocker)
+
+            const atomicBeefTX = Utils.toHex(tx.toAtomicBEEF())
+
+            console.log('✅ Processed atomicBeefTX:', atomicBeefTX)
+
+            parsedResults.push({
+              token: {
+                atomicBeefTX,
+                txid: tx.id('hex'),
+                outputIndex: result.outputIndex,
+                lockingScript: script,
+                satoshis: tx.outputs[Number(result.outputIndex)]
+                  .satoshis as number
+              }
+            } as HodlockerToken)
+          } catch (error) {
+            console.error('❌ Failed to parse Hodlocker token:', error)
+          }
+        }
+
+        console.log(
+          `🚀 Successfully parsed ${parsedResults.length} Hodlocker tokens`
+        )
+
+        // ✅ Ensure the update triggers a re-render
+        console.log('🔄 Updating state with Hodlocker tokens')
+        setHodlocker([...parsedResults]) // 🔥 Ensure a new array instance is used
+      } catch (error) {
+        console.error('❌ Failed to load Hodlocker tokens:', error)
       }
     }
 
-    void loadLocks()
+    fetchHodlockerTokensDirectly()
+  }, [])
 
-    console.log('🚀 Starting background unlock watchman...')
-    startBackgroundUnlockWatchman(async () => {
+  useEffect(() => {
+    console.log('📦 Updated hodlockerToken:', hodlocker)
+  }, [hodlocker])
+
+  useEffect(() => {
+    if (hodlocker.length === 0) {
+      console.log(
+        '⚠️ Skipping startBackgroundUnlockWatchman - hodlocker is empty'
+      )
+      return
+    }
+
+    console.log(
+      '🚀 Starting background unlock watchman with hodlocker:',
+      hodlocker
+    )
+
+    startBackgroundUnlockWatchman(hodlocker, async () => {
       const walletClient = new WalletClient('json-api', 'non-admin.com')
 
       try {
-        const lockList = await list(walletClient)
+        const lockList = await list(walletClient, hodlocker) // ✅ Pass hodlocker
         if (lockList !== null) {
           setLocks(
-            [
-              ...(lockList as Array<{
-                sats: number
-                left: number
-                message: string
-              }>)
-            ].sort((a, b) => a.left - b.left)
+            lockList
+              .map(lock => ({
+                sats: lock.sats,
+                left: lock.left,
+                message: lock.message
+              }))
+              .sort((a, b) => a.left - b.left)
           )
         }
       } catch (e) {
-        console.error('Error in background unlock watchman:', e)
+        console.error('❌ Error in background unlock watchman:', e)
       }
     })
-  }, [])
+  }, [hodlocker]) // 🔄 Triggers when hodlocker updates
 
   const handleSubmit = async (
     e: React.FormEvent<HTMLFormElement>
   ): Promise<void> => {
     const walletClient = new WalletClient('json-api', 'non-admin.com')
 
+    console.log('handleSubmit')
     e.preventDefault()
     try {
       setLoading(true)
@@ -100,7 +182,8 @@ export const App: React.FC = () => {
         Number(satoshis),
         Number(lockBlockCount),
         message,
-        setHodlocker
+        setHodlocker,
+        hodlocker
       )
       if (deployTxid !== undefined) {
         setTxid(deployTxid)
@@ -109,7 +192,7 @@ export const App: React.FC = () => {
       setMessage('')
       setSatoshis('')
       setLockBlockCount('')
-      const lockList = await list(walletClient)
+      const lockList = await list(walletClient, hodlocker)
       if (lockList !== null) {
         setLocks(
           lockList as Array<{ sats: number; left: number; message: string }>

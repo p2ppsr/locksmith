@@ -1,15 +1,16 @@
 import { AdmittanceInstructions, TopicManager } from '@bsv/overlay'
-import { Transaction, ProtoWallet, Utils, Beef } from '@bsv/sdk'
+import { Transaction, ProtoWallet, Utils } from '@bsv/sdk'
 import docs from './HodlockerTopicDocs.md.js'
-import locksmithContractJson from '../../artifacts/Locksmith.json' with { type: 'json' }
+import LocksmithContractJson from '../../artifacts/Locksmith.json' with { type: 'json' }
 import { LocksmithContract } from '../contracts/Locksmith.js'
-import { Signer } from 'scrypt-ts'
 
-// Load the contract artifact
-LocksmithContract.loadArtifact(locksmithContractJson)
+LocksmithContract.loadArtifact(LocksmithContractJson)
 
-// const anyoneWallet = new ProtoWallet('anyone')
+const anyoneWallet = new ProtoWallet('anyone')
 
+/**
+ *  Note: The PushDrop package is used to decode BRC-48 style Pay-to-Push-Drop tokens.
+ */
 export default class HodlockerTopicManager implements TopicManager {
   /**
    * Identify if the outputs are admissible depending on the particular protocol requirements
@@ -18,63 +19,40 @@ export default class HodlockerTopicManager implements TopicManager {
    * @returns A promise that resolves with the admittance instructions
    */
   async identifyAdmissibleOutputs(
-    beefBytes: number[],
+    beef: number[],
     previousCoins: number[]
   ): Promise<AdmittanceInstructions> {
-    console.log(`identifyAdmissibleOutputs:beef:${Utils.toHex(beefBytes)}`)
-
-    const beef = Beef.fromBinary(beefBytes)
-    if (!beef.isValid()) {
-      throw new Error('Invalid BEEF: does not comply with BRC-95')
-    }
-
     const outputsToAdmit: number[] = []
-
     try {
-      const parsedTransaction = Transaction.fromBEEF(beefBytes)
-      const txid = parsedTransaction.id('hex')
-      console.log(`🔍 Processing TXID: ${txid}`)
+      const parsedTransaction = Transaction.fromBEEF(beef)
 
+      // Try to decode and validate transaction outputs
       for (const [i, output] of parsedTransaction.outputs.entries()) {
         try {
+          // Parse sCrypt locking script
           const script = output.lockingScript.toHex()
-          console.log(`🔹 Output ${i} Locking Script: ${script}`)
-
-          const locksmith = LocksmithContract.fromLockingScript(
+          // Ensure Hodlocker can be constructed from script
+          const hodlocker = LocksmithContract.fromLockingScript(
             script
           ) as LocksmithContract
-          console.log('🔹 Parsed Locksmith Contract:', locksmith)
+          console.log(hodlocker)
 
-          const lockUntilHeight = Number(locksmith.lockUntilHeight)
-
-          if (!lockUntilHeight || !locksmith.address) {
-            console.warn(
-              `⚠️ Missing lockUntilHeight or address in output ${i}. Skipping...`
-            )
-            continue
-          }
-
-          console.log(
-            `ℹ️ Skipping signature verification for output ${i}, allowing based on structure only.`
-          )
+          // ❌ Removed signature verification - Hodlocker only signs on redemption
 
           outputsToAdmit.push(i)
-          console.log(`✅ Admitted output ${i} in TXID ${txid}`)
         } catch (error) {
-          console.warn(
-            `⚠️ Skipping invalid output in TXID ${txid}:`,
-            (error as Error).message
-          )
+          // Continue processing other outputs
+          continue
         }
       }
-
       if (outputsToAdmit.length === 0) {
-        console.warn(`⚠️ No outputs admitted in TXID ${txid}`)
+        console.warn('No outputs admitted!')
+        // throw new ERR_BAD_REQUEST('No outputs admitted!')
       }
     } catch (error) {
-      console.error(`❌ Error identifying admissible outputs:`, error)
+      const beefStr = JSON.stringify(beef, null, 2)
       throw new Error(
-        `topicManager:Error:identifying admissible outputs:${error}`
+        `HodlockerTopicManager: Error identifying admissible outputs: ${error} beef: ${beefStr}`
       )
     }
 
@@ -95,6 +73,7 @@ export default class HodlockerTopicManager implements TopicManager {
   /**
    * Get metadata about the topic manager
    * @returns A promise that resolves to an object containing metadata
+   * @throws An error indicating the method is not implemented
    */
   async getMetaData(): Promise<{
     name: string
@@ -105,7 +84,7 @@ export default class HodlockerTopicManager implements TopicManager {
   }> {
     return {
       name: 'Hodlocker Topic Manager',
-      shortDescription: 'Lock your coins for a number of blocks.'
+      shortDescription: 'Hodlocker time-locked contracts'
     }
   }
 }
