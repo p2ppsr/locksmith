@@ -6,12 +6,23 @@ import {
   LinearProgress,
   Container
 } from '@mui/material'
-import { lock, list, startBackgroundUnlockWatchman } from './utils/utils'
+import {
+  lock,
+  list,
+  startBackgroundUnlockWatchman,
+  truncate
+} from './utils/utils'
 import useAsyncEffect from 'use-async-effect'
 //import checkForMetaNetClient from './utils/checkForMetaNetClient'
 import { NoMncModal } from 'metanet-react-prompt'
 
-import { LookupResolver, Transaction, Utils, WalletClient } from '@bsv/sdk'
+import {
+  LookupAnswer,
+  LookupResolver,
+  Transaction,
+  Utils,
+  WalletClient
+} from '@bsv/sdk'
 import { HodlockerToken, Token } from './types/types'
 import { Locksmith } from '@bsv/backend'
 import { listContracts } from './utils/helpers'
@@ -44,9 +55,9 @@ export const App: React.FC = () => {
   // }, [])
 
   useAsyncEffect(() => {
-    const fetchHodlockerTokensDirectly = async () => {
+    const fetchHodlockerTokens = async () => {
       try {
-        console.log('🔍 Fetching Hodlocker tokens via direct fetch...')
+        console.log('fetchHodlockerTokens from overlay...')
         let lookupResult: any = undefined
 
         try {
@@ -64,118 +75,131 @@ export const App: React.FC = () => {
           console.error('❌ Lookup error:', e)
         }
 
-        // ✅ If lookupResult is empty, fallback to findAll()
-        if (!lookupResult?.outputs || lookupResult.outputs.length === 0) {
-          console.warn(
-            '⚠️ No locked tokens found in lookup! Trying findAllLockedTokens()...'
-          )
-          lookupResult = await findAllLockedTokens() // 🔥 Fetch from DB if lookup fails
-          console.log(`📦 findAllLockedTokens:lookupResult: ${lookupResult}`)
-        }
-
         if (!lookupResult || lookupResult.outputs.length === 0) {
           console.warn('⚠️ Still no locked tokens found after findAll()!')
           return
         }
-
-        console.log(`📦 Found ${lookupResult.outputs.length} locked tokens`)
+        // console.log('lookupResult:', lookupResult)
+        // console.log('lookupResult:', JSON.stringify(lookupResult, null, 2))
+        // console.log(`Found ${lookupResult.outputs.length} tokens`)
 
         const parsedResults: HodlockerToken[] = []
 
         for (const result of lookupResult.outputs) {
           try {
-            console.log(`🔍 Processing result: ${JSON.stringify(result)}`)
-
+            // Extract transaction details
             const tx = Transaction.fromBEEF(result.beef)
-            console.log(`📜 Parsed transaction from BEEF: ${tx.id('hex')}`)
+            const txid = tx.id('hex')
+            console.log(`Parsed transaction: ${txid}`)
 
-            const script = tx.outputs[
-              Number(result.outputIndex)
-            ].lockingScript.toHex()
-            console.log('🔏 Extracted locking script:', script)
+            const outputs = tx.outputs
+            const outputIndex = Number(result.outputIndex)
+            const output = outputs[outputIndex]
 
-            const hodlocker = Locksmith.fromLockingScript(script)
-            console.log('🔑 Hodlocker contract parsed:', hodlocker)
+            const script = output.lockingScript.toHex()
+            // console.log('Locking Script:', truncate(script, 80))
+
+            const satoshis = output.satoshis
+            // console.log('Satoshis:', satoshis)
+
+            // ✅ Explicitly cast to `Locksmith`
+            const locksmith = Locksmith.fromLockingScript(script) as Locksmith
+            // console.log('Locksmith:', locksmith)
 
             const atomicBeefTX = Utils.toHex(tx.toAtomicBEEF())
+            // console.log('atomicBeefTX:', atomicBeefTX)
 
-            console.log('✅ Processed atomicBeefTX:', atomicBeefTX)
+            // ✅ Extract properties from Locksmith
+            const address = locksmith.address ?? '' // Extract address
+            const lockUntilHeight = Number(locksmith.lockUntilHeight ?? 0) // Convert to number
+            const message = locksmith.message ?? '' // Extract message
 
+            // console.log('Address:', address)
+            // console.log('Lock Until Height:', lockUntilHeight)
+            // console.log('Message:', message)
+
+            // Push updated token data into parsedResults
             parsedResults.push({
               token: {
                 atomicBeefTX,
-                txid: tx.id('hex'),
-                outputIndex: result.outputIndex,
+                txid,
+                outputIndex,
                 lockingScript: script,
-                satoshis: tx.outputs[Number(result.outputIndex)]
-                  .satoshis as number
-              }
-            } as HodlockerToken)
+                satoshis
+              } as Token,
+              keyID: '1', // No keyID in Locksmith, keep empty
+              signature: '', // Signature not yet available
+              lockUntilHeight,
+              message,
+              address
+            })
           } catch (error) {
             console.error('❌ Failed to parse Hodlocker token:', error)
           }
         }
 
-        console.log(
-          `🚀 Successfully parsed ${parsedResults.length} Hodlocker tokens`
-        )
-
-        // ✅ Ensure the update triggers a re-render
-        console.log('🔄 Updating state with Hodlocker tokens')
-        setHodlocker([...parsedResults]) // 🔥 Ensure a new array instance is used
+        // Ensure the update triggers a re-render
+        console.log('Updating state with Hodlocker tokens')
+        setHodlocker([...parsedResults])
       } catch (error) {
         console.error('❌ Failed to load Hodlocker tokens:', error)
       }
     }
 
-    fetchHodlockerTokensDirectly()
+    fetchHodlockerTokens()
   }, [])
 
   useEffect(() => {
-    console.log('📦 Updated hodlockerToken:', hodlocker)
-  }, [hodlocker])
+    let watchmanStarted = false // ✅ Prevent multiple triggers
 
-  useEffect(() => {
-    if (hodlocker.length === 0) {
-      console.log(
-        '⚠️ Skipping startBackgroundUnlockWatchman - hodlocker is empty'
-      )
-      return
-    }
-
-    console.log(
-      '🚀 Starting background unlock watchman with hodlocker:',
-      hodlocker
-    )
-
-    startBackgroundUnlockWatchman(hodlocker, async () => {
-      const walletClient = new WalletClient('json-api', 'non-admin.com')
+    const fetchLocks = async () => {
+      console.log('Updated hodlockerToken:', hodlocker)
 
       try {
-        const lockList = await list(walletClient, hodlocker) // ✅ Pass hodlocker
-        if (lockList !== null) {
-          setLocks(
-            lockList
-              .map(lock => ({
-                sats: lock.sats,
-                left: lock.left,
-                message: lock.message
-              }))
-              .sort((a, b) => a.left - b.left)
+        const walletClient = new WalletClient('json-api', 'non-admin.com')
+        const currentBlockHeight = await walletClient.getHeight()
+
+        const lockList = hodlocker.map(lock => ({
+          sats: lock.token.satoshis,
+          left: lock.lockUntilHeight - currentBlockHeight.height,
+          message: lock.message
+        }))
+
+        setLocks(lockList)
+
+        // ✅ Find redeemable tokens only once
+        if (!watchmanStarted) {
+          const redeemableTokens = hodlocker.filter(
+            lock => lock.lockUntilHeight <= currentBlockHeight.height
           )
+
+          if (redeemableTokens.length > 0) {
+            console.log(
+              `🔓 Found ${redeemableTokens.length} redeemable tokens, unlocking...`
+            )
+            watchmanStarted = true // Prevent duplicate triggers
+            startBackgroundUnlockWatchman(redeemableTokens, () => fetchLocks())
+          } else {
+            console.log('⏳ No redeemable tokens yet.')
+          }
         }
-      } catch (e) {
-        console.error('❌ Error in background unlock watchman:', e)
+      } catch (error) {
+        console.error(
+          '❌ Failed to fetch lock details:',
+          (error as Error).message
+        )
       }
-    })
-  }, [hodlocker]) // 🔄 Triggers when hodlocker updates
+    }
+
+    fetchLocks()
+  }, [hodlocker]) // ✅ Runs only when hodlocker updates
 
   const handleSubmit = async (
     e: React.FormEvent<HTMLFormElement>
   ): Promise<void> => {
     const walletClient = new WalletClient('json-api', 'non-admin.com')
 
-    console.log('handleSubmit')
+    console.log('handleSubmit:message:', message)
     e.preventDefault()
     try {
       setLoading(true)
@@ -193,12 +217,12 @@ export const App: React.FC = () => {
       setMessage('')
       setSatoshis('')
       setLockBlockCount('')
-      const lockList = await list(walletClient, hodlocker)
-      if (lockList !== null) {
-        setLocks(
-          lockList as Array<{ sats: number; left: number; message: string }>
-        )
-      }
+      //const lockList = await list(walletClient, hodlocker)
+      // if (lockList !== null) {
+      // setLocks(
+      //   lockList as Array<{ sats: number; left: number; message: string }>
+      // )
+      // }
     } catch (e) {
       setLoading(false)
       window.alert((e as Error).message)
@@ -337,46 +361,6 @@ export const App: React.FC = () => {
       </center>
     </Container>
   )
-}
-
-export const findAllLockedTokens = async () => {
-  console.log('🔍 Running findAllLockedTokens()...')
-  try {
-    const res = await fetch('http://localhost:8080/lookup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service: 'ls_hodlocker',
-        query: { findAll: true }
-      })
-    })
-
-    const data = await res.json()
-    console.log('🔎 Lookup result:', data)
-
-    if (!data || data.type !== 'output-list' || !data.outputs) {
-      console.warn('⚠️ No Hodlocker records for findAll')
-      return [] // ✅ Always return an empty array instead of undefined
-    }
-    return data
-
-    // try {
-    //   const resolver = new LookupResolver({ networkPreset: 'local' })
-    //   const lookupResult = await resolver.query({
-    //     service: 'ls_hodlocker',
-    //     query: { findAll: true }
-    //   })
-
-    //   if (!lookupResult || lookupResult.type !== 'output-list') {
-    //     console.warn('⚠️ findAllLockedTokens: No valid output list found.')
-    //     return { outputs: [] }
-    //   }
-
-    //   return lookupResult
-  } catch (error) {
-    console.error('❌ ERROR in findAllLockedTokens:', error)
-    return { outputs: [] }
-  }
 }
 
 export default App

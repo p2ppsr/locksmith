@@ -115,7 +115,7 @@ export const listContracts = async <T extends SmartContract>(
   BASKET_ID: string,
   hodlocker: HodlockerToken[],
   contractHydrator: (lockingScriptHex: string) => T
-): Promise<ListResult<T>[]> => {
+): Promise<Array<ListResult<T>>> => {
   console.log(`📡 listContracts started for basket: ${BASKET_ID}`)
 
   const walletClient = new WalletClient('json-api', 'non-admin.com')
@@ -168,7 +168,7 @@ export const listContracts = async <T extends SmartContract>(
           return t.token.txid === output.outpoint.split('.')[0]
         })
 
-        if (!matchingToken) {
+        if (matchingToken == null) {
           console.warn(`⚠️ No stored token found for txid: ${txid}`)
           return null
         }
@@ -229,7 +229,7 @@ export const listContracts = async <T extends SmartContract>(
     )
 
     console.log(
-      `✅ Final processed results:`,
+      '✅ Final processed results:',
       results.filter(r => r !== null)
     )
 
@@ -286,7 +286,7 @@ export const redeemContract = async (
   const walletClient = new WalletClient('json-api', 'non-admin.com')
 
   try {
-    // Verify BEEF exists instead of envelope
+    // Verify BEEF exists
     verifyTruthy(listResult.BEEF)
 
     // Ensure there are outputs available
@@ -328,7 +328,7 @@ export const redeemContract = async (
           inputDescription: 'Unlocking Hodlocker'
         }
       ],
-      inputBEEF: Utils.toArray(listResult.BEEF),
+      inputBEEF: Utils.toArray(listResult.BEEF), // ✅ Ensure BEEF is passed
       description,
       lockTime: customLockTime,
       outputs

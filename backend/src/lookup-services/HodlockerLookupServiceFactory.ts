@@ -46,6 +46,9 @@ export class HodlockerLookupService implements LookupService {
       const address = hodlocker.address?.toString()
       const lockUntilHeight = Number(hodlocker.lockUntilHeight)
       const message = hodlocker.message
+      console.log('[DEBUG] outputAdded():address:', address)
+      console.log('[DEBUG] outputAdded():lockUntilHeight:', lockUntilHeight)
+      console.log('[DEBUG] outputAdded():message:', message)
 
       if (!address || !lockUntilHeight || !message) {
         console.log('[DEBUG] outputAdded() missing fields:', {
