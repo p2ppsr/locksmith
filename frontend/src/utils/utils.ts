@@ -205,56 +205,54 @@ export const startBackgroundUnlockWatchman = async (
               });
               bsvtx.inputs[0].sequenceNumber = 0xfffffffe;
               bsvtx.nLockTime = lockUntilHeight;
-              
-              const publicKeyResp1 = await walletClient.getPublicKey({
-                protocolID: [0, 'hodlocker'],
-                keyID,
-                counterparty: 'self',
-              });
-              const publicKeyHex1 = publicKeyResp1.publicKey;
-              console.log('🔍 Public Key from walletClient:', publicKeyHex1);
-              console.log('🔍 Expected KeyID:', keyID);
-              
-              const address = bsv.PublicKey.fromString(publicKeyHex1).toAddress();
-              console.log('🔍 Derived Address:', address.toString());
-              console.log('🔍 Raw hodlock.address:', hodlock.address);
-              console.log('🔍 Type of hodlock.address:', typeof hodlock.address);
-              
-              let contractAddress;
-              try {
-                contractAddress = bsv.Address.fromString(hodlock.address);
-                console.log('🔍 Contract Address Parsed:', contractAddress.toString());
-                console.log('🔍 Address Match:', address.toString() === contractAddress.toString());
-                console.log('🔍 Contract Hash160:', contractAddress.hashBuffer.toString('hex'));
-              } catch (e) {
-                console.error('❌ Error parsing contract address:', (e as Error).message);
-                console.log('🔍 hodlock.address Hex Dump:', Buffer.from(hodlock.address, 'utf8').toString('hex'));
-                const hash160 = hodlock.address;
-                contractAddress = bsv.Address.fromPublicKeyHash(Buffer.from(hash160, 'hex'));
-                console.log('🔍 Fallback Contract Address:', contractAddress.toString());
-                console.log('🔍 Fallback Address Match:', address.toString() === contractAddress.toString());
-              }
-              
-              bsvtx.addOutput(
-                new bsv.Transaction.Output({
-                  script: bsv.Script.buildPublicKeyHashOut(address),
-                  satoshis: token.satoshis,
-                })
-              );
-              console.log('🔍 Transaction Hex:', bsvtx.toString());
-              console.log('🔍 Transaction Inputs:', bsvtx.inputs.map(i => i.prevTxId.toString('hex')));
-              console.log('🔍 Transaction Outputs:', bsvtx.outputs.map(o => o.script.toASM()));
-              console.log('🔍 nLockTime:', bsvtx.nLockTime);
-              console.log('🔍 Sequence[0]:', bsvtx.inputs[0].sequenceNumber.toString(16));              //   counterparty: 'self',
-              locksmithSelf.to = { tx: bsvtx, inputIndex: 0 };
-              locksmithSelf.from = { tx: parsedFromTx, outputIndex: 0 };
 
-              if (!locksmithSelf.from.tx.inputs?.length || !locksmithSelf.from.tx.inputs[0]?.prevTxId) {
-                throw new Error(`prevTxId missing in self.from for ${token.txid}`);
-              }
+              // const publicKeyResp1 = await walletClient.getPublicKey({
+              //   protocolID: [0, 'hodlocker'],
+              //   keyID,
+              //   counterparty: 'self',
+              // });
+              // const publicKeyHex1 = publicKeyResp1.publicKey;
+              // console.log('🔍 Public Key from walletClient:', publicKeyHex1);
+              // console.log('🔍 Expected KeyID:', keyID);
+
+              // const address = bsv.PublicKey.fromString(publicKeyHex1).toAddress();
+              // console.log('🔍 Derived Address:', address.toString());
+              // console.log('🔍 Raw hodlock.address:', hodlock.address);
+              // console.log('🔍 Type of hodlock.address:', typeof hodlock.address);
+
+              // let contractAddress;
+              // try {
+              //   contractAddress = bsv.Address.fromString(hodlock.address);
+              //   console.log('🔍 Contract Address Parsed:', contractAddress.toString());
+              //   console.log('🔍 Address Match:', address.toString() === contractAddress.toString());
+              //   console.log('🔍 Contract Hash160:', contractAddress.hashBuffer.toString('hex'));
+              // } catch (e) {
+              //   console.error('❌ Error parsing contract address:', (e as Error).message);
+              //   console.log('🔍 hodlock.address Hex Dump:', Buffer.from(hodlock.address, 'utf8').toString('hex'));
+              //   const hash160 = hodlock.address;
+              //   contractAddress = bsv.Address.fromPublicKeyHash(Buffer.from(hash160, 'hex'));
+              //   console.log('🔍 Fallback Contract Address:', contractAddress.toString());
+              //   console.log('🔍 Fallback Address Match:', address.toString() === contractAddress.toString());
+              // }
+
+              // bsvtx.addOutput(
+              //   new bsv.Transaction.Output({
+              //     script: bsv.Script.buildPublicKeyHashOut(address),
+              //     satoshis: token.satoshis,
+              //   })
+              // );
+              // console.log('🔍 Transaction Hex:', bsvtx.toString());
+              // console.log('🔍 Transaction Inputs:', bsvtx.inputs.map(i => i.prevTxId.toString('hex')));
+              // console.log('🔍 Transaction Outputs:', bsvtx.outputs.map(o => o.script.toASM()));
+              // console.log('🔍 nLockTime:', bsvtx.nLockTime);
+              // console.log('🔍 Sequence[0]:', bsvtx.inputs[0].sequenceNumber.toString(16));              //   counterparty: 'self',
+
+              // if (!locksmithSelf.from.tx.inputs?.length || !locksmithSelf.from.tx.inputs[0]?.prevTxId) {
+              //   throw new Error(`prevTxId missing in self.from for ${token.txid}`);
+              // }
 
               const hashType = bsv.crypto.Signature.SIGHASH_NONE | bsv.crypto.Signature.SIGHASH_ANYONECANPAY | bsv.crypto.Signature.SIGHASH_FORKID;
-              console.log('🔍 Hash Type:', hashType.toString(16));
+              // console.log('🔍 Hash Type:', hashType.toString(16));
               const scriptInstance = bsv.Script.fromHex(token.lockingScript);
               const preimage = bsv.Transaction.Sighash.sighashPreimage(
                 bsvtx,
@@ -263,70 +261,51 @@ export const startBackgroundUnlockWatchman = async (
                 scriptInstance,
                 new bsv.crypto.BN(token.satoshis)
               );
-              const preimageSingleHash = bsv.crypto.Hash.sha256(preimage);
+              const preimageHash = bsv.crypto.Hash.sha256(preimage);
               console.log('🔍 Preimage:', preimage.toString('hex'));
-              console.log('🔍 Preimage Single Hash:', preimageSingleHash.toString('hex'));
-              console.log('🔍 Hash to Sign (Array):', Array.from(preimageSingleHash));
-              
+              // console.log('🔍 Preimage Double Hash:', preimageDoubleHash.toString('hex'));
+              // console.log('🔍 Hash to Sign (Array):', Array.from(preimageDoubleHash));
+
               const sdkSignature = await walletClient.createSignature({
                 protocolID: [0, 'hodlocker'],
                 keyID,
-                //counterparty: 'self',
-                hashToDirectlySign: Array.from(preimageSingleHash),
+                counterparty: 'self',
+                data: Array.from(preimageHash)
               });
-              console.log('🔍 Raw SDK Signature:', sdkSignature.signature);
-               
+              // console.log('🔍 Raw SDK Signature:', sdkSignature.signature);
+
               const signatureBuf = Buffer.from(sdkSignature.signature);
               console.log('🔍 Signature Buffer:', signatureBuf.toString('hex'));
-              
-              let signature;
-              try {
-                signature = bsv.crypto.Signature.fromDER(signatureBuf);
-                signature.nhashtype = hashType;
-                console.log('🔍 Parsed Signature:', signature.toString());
-              
-                const pubKeyObj = bsv.PublicKey.fromString(publicKeyHex1);
-                const derivedAddr = bsv.Address.fromPublicKey(pubKeyObj);
-                console.log('🔍 Signing Key Address:', derivedAddr.toString());
-                console.log('🔍 Signing Key Hash160:', derivedAddr.hashBuffer.toString('hex'));
-              
-                const verified = bsv.crypto.ECDSA.verify(
-                  preimageSingleHash,
-                  signature,
-                  pubKeyObj
-                );
-                console.log('🔍 Public Key Used for Verification:', publicKeyHex1);
-                console.log('🔍 Signature Verification Result:', verified);
-                if (!verified) {
-                  console.error('❌ Manual signature verification failed');
-                  console.log('🔍 Expected Hash (Single SHA256):', preimageSingleHash.toString('hex'));
-                }
-              } catch (e) {
-                console.error('❌ Signature DER Parsing Failed:', (e as Error).message);
-                throw new Error('Invalid signature format from walletClient');
-              }              
-              
-               signature.nhashtype = hashType;
 
-              let publicKeyResp;
-              try {
-                publicKeyResp = await walletClient.getPublicKey({
-                  protocolID: [0, 'hodlocker'],
-                  keyID,
-                  counterparty: 'self',
-                });
+              const signature = bsv.crypto.Signature.fromDER(signatureBuf);
+              signature.nhashtype = hashType;
+              console.log('🔍 Parsed Signature:', signature.toString());
 
-                if (!publicKeyResp?.publicKey) {
-                  throw new Error(`Failed to retrieve public key for ${token.txid}`);
-                }
-              } catch (error) {
-                console.error(`❌ ERROR: Failed to get public key for ${token.txid}:`, (error as Error).message);
-                throw error;
-              }
+              // const pubKeyObj = bsv.PublicKey.fromString(publicKeyHex1);
+              // const derivedAddr = bsv.Address.fromPublicKey(pubKeyObj);
+              // console.log('🔍 Signing Key Address:', derivedAddr.toString());
+              // console.log('🔍 Signing Key Hash160:', derivedAddr.hashBuffer.toString('hex'));
 
+              // const verified = bsv.crypto.ECDSA.verify(
+              //   preimageDoubleHash,
+              //   signature,
+              //   pubKeyObj
+              // );
+              // console.log('🔍 Public Key Used for Verification:', publicKeyHex1);
+              // console.log('🔍 Signature Verification Result:', verified);
+              // if (!verified) {
+              //   console.error('❌ Manual signature verification failed');
+              //   console.log('🔍 Expected Hash (Single SHA256):', preimageDoubleHash.toString('hex'));
+              // }
+
+              const publicKeyResp = await walletClient.getPublicKey({
+                protocolID: [0, 'hodlocker'],
+                keyID,
+                counterparty: 'self',
+              });
               const publicKeyHex = publicKeyResp.publicKey;
-              console.log('✅ Public key retrieved for contract:', publicKeyHex);
-
+              locksmithSelf.to = { tx: bsvtx, inputIndex: 0 };
+              locksmithSelf.from = { tx: parsedFromTx, outputIndex: 0 };
               locksmithSelf.unlock(
                 Sig(toByteString(signature.toTxFormat().toString('hex'))),
                 PubKey(toByteString(publicKeyHex))
@@ -341,6 +320,7 @@ export const startBackgroundUnlockWatchman = async (
         const broadcastActionParams: CreateActionArgs = {
           description: 'Unlock Locksmith contract',
           inputBEEF: atomicBeef,
+          lockTime: lockUntilHeight,
           inputs: [
             {
               outpoint: `${token.txid}.${token.outputIndex}`,
@@ -349,27 +329,22 @@ export const startBackgroundUnlockWatchman = async (
               inputDescription: 'Unlocking Locksmith contract',
             },
           ],
-          outputs: [
-            {
-              basket: 'hodlocker tokens',
-              lockingScript: LocksmithContract.lockingScript.toHex(),
-              satoshis: token.satoshis,
-              outputDescription: 'Updated contract state',
-            },
-          ],
           options: {
-            acceptDelayedBroadcast: true,
-            randomizeOutputs: false,
-          },
+            acceptDelayedBroadcast: true
+          }
         };
 
         try {
-          const newToken = await walletClient.createAction(broadcastActionParams) as CreateActionResult;
-          if (!newToken.rawTx) {
-            throw new Error(`Transaction creation failed for ${token.txid}: newToken.rawTx is undefined`);
+          const newToken = await walletClient.createAction(broadcastActionParams);
+          if (!newToken.txid) {
+            throw new Error(`Transaction creation failed for ${token.txid}: newToken.txid is undefined`);
           }
-          console.log(`✅ Successfully unlocked ${token.txid}, new txid: ${newToken.rawTx}`);
-          console.log('🔍 New Transaction Hex:', newToken.rawTx);   
+          new SHIPBroadcaster(
+            ['tm_hodlocker'],
+            { networkPreset: 'local' }
+          ).broadcast(Transaction.fromAtomicBEEF(newToken.tx!))
+
+          console.log(`✅ Successfully unlocked ${token.txid}, new txid: ${newToken.txid}`);
         } catch (error) {
           console.error(`❌ ERROR broadcasting transaction for ${token.txid}:`, (error as Error).message);
           continue;
