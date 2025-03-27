@@ -6,26 +6,14 @@ import {
   LinearProgress,
   Container
 } from '@mui/material'
-import {
-  lock,
-  list,
-  startBackgroundUnlockWatchman,
-  truncate
-} from './utils/utils'
+import { lock, startBackgroundUnlockWatchman, truncate } from './utils/utils'
 import useAsyncEffect from 'use-async-effect'
 //import checkForMetaNetClient from './utils/checkForMetaNetClient'
 import { NoMncModal } from 'metanet-react-prompt'
 
-import {
-  LookupAnswer,
-  LookupResolver,
-  Transaction,
-  Utils,
-  WalletClient
-} from '@bsv/sdk'
+import { LookupResolver, Transaction, Utils, WalletClient } from '@bsv/sdk'
 import { HodlockerToken, Token } from './types/types'
 import { Locksmith } from '@bsv/backend'
-import { listContracts } from './utils/helpers'
 
 export const App: React.FC = () => {
   const [isMncMissing, setIsMncMissing] = useState<boolean>(false)
@@ -38,6 +26,7 @@ export const App: React.FC = () => {
     Array<{ sats: number; left: number; message: string }>
   >([])
   const [hodlocker, setHodlocker] = useState<HodlockerToken[]>([])
+  const [watchmanStarted, setWatchmanStarted] = useState(false)
 
   // useAsyncEffect(async () => {
   //   const intervalId = setInterval(async () => {
@@ -79,9 +68,6 @@ export const App: React.FC = () => {
           console.warn('⚠️ Still no locked tokens found after findAll()!')
           return
         }
-        // console.log('lookupResult:', lookupResult)
-        // console.log('lookupResult:', JSON.stringify(lookupResult, null, 2))
-        // console.log(`Found ${lookupResult.outputs.length} tokens`)
 
         const parsedResults: HodlockerToken[] = []
 
@@ -116,7 +102,7 @@ export const App: React.FC = () => {
 
             // console.log('Address:', address)
             // console.log('Lock Until Height:', lockUntilHeight)
-            // console.log('Message:', message)
+            console.log('Message:', message)
 
             // Push updated token data into parsedResults
             parsedResults.push({
@@ -128,7 +114,6 @@ export const App: React.FC = () => {
                 satoshis
               } as Token,
               keyID: '1', // No keyID in Locksmith, keep empty
-              signature: '', // Signature not yet available
               lockUntilHeight,
               message,
               address
@@ -150,39 +135,43 @@ export const App: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    let watchmanStarted = false // ✅ Prevent multiple triggers
-
     const fetchLocks = async () => {
       console.log('Updated hodlockerToken:', hodlocker)
-
+      //setWatchmanStarted(false)
       try {
         const walletClient = new WalletClient('json-api', 'non-admin.com')
         const currentBlockHeight = await walletClient.getHeight()
+        console.log('🔍 Current Block Height:', currentBlockHeight.height)
 
         const lockList = hodlocker.map(lock => ({
           sats: lock.token.satoshis,
           left: lock.lockUntilHeight - currentBlockHeight.height,
-          message: lock.message
+          message: Buffer.from(lock.message, 'hex').toString('utf8')
         }))
 
         setLocks(lockList)
+        console.log('🔍 lockList:', lockList)
+        console.log('🔍 locks:', locks)
 
-        // ✅ Find redeemable tokens only once
-        if (!watchmanStarted) {
-          const redeemableTokens = hodlocker.filter(
-            lock => lock.lockUntilHeight <= currentBlockHeight.height
-          )
+        // Check if any locks have become redeemable
+        const redeemableTokens = hodlocker.filter(
+          lock => lock.lockUntilHeight <= currentBlockHeight.height
+        )
 
-          if (redeemableTokens.length > 0) {
-            console.log(
-              `🔓 Found ${redeemableTokens.length} redeemable tokens, unlocking...`
-            )
-            watchmanStarted = true // Prevent duplicate triggers
-            startBackgroundUnlockWatchman(redeemableTokens, () => fetchLocks())
-          } else {
-            console.log('⏳ No redeemable tokens yet.')
-          }
-        }
+        console.log('🔍 Checking for redeemable tokens:', redeemableTokens)
+        //console.log('⏳ watchmanStarted:', watchmanStarted)
+
+        // Only call startBackgroundUnlockWatchman if it's not already started
+        await startBackgroundUnlockWatchman(redeemableTokens) // Make sure to await this call, so it's not called again before it finishes
+
+        // if (redeemableTokens.length > 0) {
+        //   console.log(
+        //     `🔓 Found ${redeemableTokens.length} redeemable tokens, unlocking...`
+        //   )
+        //   //setWatchmanStarted(true) // Update state to prevent duplicate calls
+        //  } else if (redeemableTokens.length === 0) {
+        //   console.log('⏳ No redeemable tokens yet.')
+        // }
       } catch (error) {
         console.error(
           '❌ Failed to fetch lock details:',
@@ -191,8 +180,12 @@ export const App: React.FC = () => {
       }
     }
 
+    // Initial check and then check every 10s
     fetchLocks()
-  }, [hodlocker]) // ✅ Runs only when hodlocker updates
+    const interval = setInterval(fetchLocks, 10000) // Check every 10s
+
+    return () => clearInterval(interval) // Cleanup on unmount
+  }, [hodlocker])
 
   const handleSubmit = async (
     e: React.FormEvent<HTMLFormElement>

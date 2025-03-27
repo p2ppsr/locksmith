@@ -12,7 +12,6 @@ export interface Token {
 export interface HodlockerToken {
   token: Token
   keyID: string
-  signature: string
   lockUntilHeight: number
   message: string
   address: string
