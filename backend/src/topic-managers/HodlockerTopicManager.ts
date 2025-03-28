@@ -18,7 +18,7 @@ export default class HodlockerTopicManager implements TopicManager {
    * @param previousCoins - The previous coins to consider
    * @returns A promise that resolves with the admittance instructions
    */
-  async identifyAdmissibleOutputs(
+  async identifyAdmissibleOutputs (
     beef: number[],
     previousCoins: number[]
   ): Promise<AdmittanceInstructions> {
@@ -66,7 +66,7 @@ export default class HodlockerTopicManager implements TopicManager {
    * Get the documentation associated with this topic manager
    * @returns A promise that resolves to a string containing the documentation
    */
-  async getDocumentation(): Promise<string> {
+  async getDocumentation (): Promise<string> {
     return docs
   }
 
@@ -75,7 +75,7 @@ export default class HodlockerTopicManager implements TopicManager {
    * @returns A promise that resolves to an object containing metadata
    * @throws An error indicating the method is not implemented
    */
-  async getMetaData(): Promise<{
+  async getMetaData (): Promise<{
     name: string
     shortDescription: string
     iconURL?: string

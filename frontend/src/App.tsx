@@ -26,7 +26,6 @@ export const App: React.FC = () => {
     Array<{ sats: number; left: number; message: string }>
   >([])
   const [hodlocker, setHodlocker] = useState<HodlockerToken[]>([])
-  const [watchmanStarted, setWatchmanStarted] = useState(false)
 
   // useAsyncEffect(async () => {
   //   const intervalId = setInterval(async () => {
@@ -83,26 +82,16 @@ export const App: React.FC = () => {
             const output = outputs[outputIndex]
 
             const script = output.lockingScript.toHex()
-            // console.log('Locking Script:', truncate(script, 80))
 
             const satoshis = output.satoshis
-            // console.log('Satoshis:', satoshis)
 
-            // ✅ Explicitly cast to `Locksmith`
             const locksmith = Locksmith.fromLockingScript(script) as Locksmith
-            // console.log('Locksmith:', locksmith)
 
             const atomicBeefTX = Utils.toHex(tx.toAtomicBEEF())
-            // console.log('atomicBeefTX:', atomicBeefTX)
 
-            // ✅ Extract properties from Locksmith
-            const address = locksmith.address ?? '' // Extract address
-            const lockUntilHeight = Number(locksmith.lockUntilHeight ?? 0) // Convert to number
-            const message = locksmith.message ?? '' // Extract message
-
-            // console.log('Address:', address)
-            // console.log('Lock Until Height:', lockUntilHeight)
-            console.log('Message:', message)
+            const address = locksmith.address ?? ''
+            const lockUntilHeight = Number(locksmith.lockUntilHeight ?? 0)
+            const message = locksmith.message ?? ''
 
             // Push updated token data into parsedResults
             parsedResults.push({
@@ -137,7 +126,6 @@ export const App: React.FC = () => {
   useEffect(() => {
     const fetchLocks = async () => {
       console.log('Updated hodlockerToken:', hodlocker)
-      //setWatchmanStarted(false)
       try {
         const walletClient = new WalletClient('json-api', 'non-admin.com')
         const currentBlockHeight = await walletClient.getHeight()
@@ -159,19 +147,7 @@ export const App: React.FC = () => {
         )
 
         console.log('🔍 Checking for redeemable tokens:', redeemableTokens)
-        //console.log('⏳ watchmanStarted:', watchmanStarted)
-
-        // Only call startBackgroundUnlockWatchman if it's not already started
         await startBackgroundUnlockWatchman(redeemableTokens) // Make sure to await this call, so it's not called again before it finishes
-
-        // if (redeemableTokens.length > 0) {
-        //   console.log(
-        //     `🔓 Found ${redeemableTokens.length} redeemable tokens, unlocking...`
-        //   )
-        //   //setWatchmanStarted(true) // Update state to prevent duplicate calls
-        //  } else if (redeemableTokens.length === 0) {
-        //   console.log('⏳ No redeemable tokens yet.')
-        // }
       } catch (error) {
         console.error(
           '❌ Failed to fetch lock details:',
