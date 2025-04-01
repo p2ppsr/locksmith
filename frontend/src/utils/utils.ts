@@ -31,7 +31,7 @@ Locksmith.loadArtifact(LocksmithArtifact)
  * @param result - The result from a createAction call.
  * @throws Error if transaction data is missing or invalid.
  */
-function throwIfAnyUnsuccessfulCreateActions(result: {
+function throwIfAnyUnsuccessfulCreateActions (result: {
   sendWithResults?: SendWithResult[]
   txid?: TXIDHexString
   tx?: AtomicBEEF

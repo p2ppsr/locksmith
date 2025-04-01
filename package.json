@@ -21,11 +21,11 @@
   ],
   "devDependencies": {
     "@bsv/cars-cli": "^1.1.4",
-    "@bsv/lars": "file:../lars"
+    "@bsv/lars": "^1.4.0"
   },
   "dependencies": {
     "@bsv/overlay": "^0.1.27",
-    "@bsv/sdk": "^1.4.11",
+    "@bsv/sdk": "^1.4.12",
     "http-proxy": "^1.18.1",
     "mongodb": "^6.15.0",
     "scrypt-ts": "^1.4.5",

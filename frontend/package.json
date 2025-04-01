@@ -3,29 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "license": "Open BSV License",
-  "dependencies": {
-    "@babbage/react-prompt": "^0.2.20",
-    "@bsv/backend": "file:../backend",
-    "@bsv/sdk": "^1.4.12",
-    "@emotion/react": "^11.13.0",
-    "@emotion/styled": "^11.13.0",
-    "@mui/icons-material": "^5.16.4",
-    "@mui/material": "^5.16.7",
-    "@mui/system": "^5.16.7",
-    "@types/jest": "^29.5.11",
-    "metanet-identity-react": "^0.1.61",
-    "metanet-react-prompt": "^0.1.28",
-    "pushdrop": "^0.1.61",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-toastify": "^10.0.5",
-    "scrypt-ts": "^1.4.3",
-    "scrypt-ts-lib": "^0.1.28",
-    "use-async-effect": "^2.2.7"
-  },
   "scripts": {
-    "linttsx": "ts-standard --fix src/**/*.tsx",
-    "lintts": "ts-standard --fix src/**/*.ts",
+    "lint": "ts-standard --fix src/**/*.{ts,tsx}",
     "start": "webpack serve --config webpack.dev.js",
     "build": "webpack --config webpack.prod.js",
     "compile": "npx scrypt-cli compile"
@@ -47,6 +26,26 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "dependencies": {
+    "@babbage/react-prompt": "^0.2.20",
+    "@bsv/backend": "file:../backend",
+    "@bsv/sdk": "^1.4.12",
+    "@emotion/react": "^11.13.0",
+    "@emotion/styled": "^11.13.0",
+    "@mui/icons-material": "^5.16.4",
+    "@mui/material": "^5.16.7",
+    "@mui/system": "^5.16.7",
+    "@types/jest": "^29.5.11",
+    "metanet-identity-react": "^0.1.61",
+    "metanet-react-prompt": "^0.1.28",
+    "pushdrop": "^0.1.61",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-toastify": "^10.0.5",
+    "scrypt-ts": "^1.4.3",
+    "scrypt-ts-lib": "^0.1.28",
+    "use-async-effect": "^2.2.7"
   },
   "devDependencies": {
     "@babel/core": "^7.18.5",

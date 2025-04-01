@@ -48,7 +48,7 @@ export const App: React.FC = () => {
       }
 
       if (lookupResult.outputs.length === 0) {
-        console.warn('⚠️ No hodlocker tokens found in backend response!')
+        console.log('No hodlocker tokens found in backend response')
         return
       }
       console.log('lookupResult.outputs:', lookupResult.outputs)
@@ -270,7 +270,7 @@ export const App: React.FC = () => {
         </form>
         <br />
         <br />
-        {txid !== '' && <Typography>Locking TXID: {txid}</Typography>}
+        {txid !== '' && <Typography>Latest Locking TXID: {txid}</Typography>}
         <br />
         <br />
         {locks.length > 0 && (
