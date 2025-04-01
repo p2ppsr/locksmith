@@ -27,7 +27,7 @@ export const App: React.FC = () => {
   const [txid, setTxid] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
   const [locks, setLocks] = useState<
-  Array<{ sats: number, left: number, message: string }>
+    Array<{ sats: number; left: number; message: string }>
   >([])
   const [hodlocker, setHodlocker] = useState<HodlockerToken[]>([])
 
@@ -190,11 +190,11 @@ export const App: React.FC = () => {
   }
 
   return (
-    <Container maxWidth='sm' sx={{ paddingTop: '2em' }}>
+    <Container maxWidth="sm" sx={{ paddingTop: '2em' }}>
       <NoMncModal
         open={isMncMissing}
         onClose={() => setIsMncMissing(false)}
-        appName=''
+        appName=""
       />
       <center style={{ margin: '1em' }}>
         <form
@@ -203,8 +203,8 @@ export const App: React.FC = () => {
           }}
         >
           <center>
-            <Typography variant='h3'>Locksmith</Typography>
-            <Typography variant='h5'>
+            <Typography variant="h3">Locksmith</Typography>
+            <Typography variant="h5">
               For those of us who think purposely freezing our money for a cause
               is cool.
             </Typography>
@@ -213,10 +213,10 @@ export const App: React.FC = () => {
           <br />
           <TextField
             disabled={loading}
-            type='number'
+            type="number"
             autoFocus
             fullWidth
-            label='satoshis:'
+            label="satoshis:"
             value={satoshis}
             onChange={(e: {
               target: { value: React.SetStateAction<string> }
@@ -226,8 +226,8 @@ export const App: React.FC = () => {
           <br />
           <TextField
             disabled={loading}
-            type='number'
-            label='how many blocks to lock for:'
+            type="number"
+            label="how many blocks to lock for:"
             value={lockBlockCount}
             fullWidth
             onChange={(e: {
@@ -238,7 +238,7 @@ export const App: React.FC = () => {
           <br />
           <TextField
             disabled={loading}
-            label='Why? Just why?'
+            label="Why? Just why?"
             value={message}
             fullWidth
             rows={8}
@@ -257,10 +257,10 @@ export const App: React.FC = () => {
           <br />
           <Button
             disabled={loading}
-            type='submit'
-            variant='contained'
-            size='large'
-            color='primary'
+            type="submit"
+            variant="contained"
+            size="large"
+            color="primary"
           >
             Lock Coins
           </Button>
@@ -275,7 +275,7 @@ export const App: React.FC = () => {
         <br />
         {locks.length > 0 && (
           <div>
-            <Typography variant='h4'>Your Current Locks</Typography>
+            <Typography variant="h4">Your Current Locks</Typography>
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
