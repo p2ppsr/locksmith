@@ -6,7 +6,7 @@
   "dependencies": {
     "@babbage/react-prompt": "^0.2.20",
     "@bsv/backend": "file:../backend",
-    "@bsv/sdk": "^1.4.9",
+    "@bsv/sdk": "^1.4.12",
     "@emotion/react": "^11.13.0",
     "@emotion/styled": "^11.13.0",
     "@mui/icons-material": "^5.16.4",
@@ -24,7 +24,8 @@
     "use-async-effect": "^2.2.7"
   },
   "scripts": {
-    "lint": "ts-standard --fix src/**/*.ts",
+    "linttsx": "ts-standard --fix src/**/*.tsx",
+    "lintts": "ts-standard --fix src/**/*.ts",
     "start": "webpack serve --config webpack.dev.js",
     "build": "webpack --config webpack.prod.js",
     "compile": "npx scrypt-cli compile"

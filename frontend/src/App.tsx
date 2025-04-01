@@ -6,142 +6,121 @@ import {
   LinearProgress,
   Container
 } from '@mui/material'
-import { lock, startBackgroundUnlockWatchman, truncate } from './utils/utils'
-import useAsyncEffect from 'use-async-effect'
-//import checkForMetaNetClient from './utils/checkForMetaNetClient'
+import { lock, startBackgroundUnlockWatchman } from './utils/utils'
 import { NoMncModal } from 'metanet-react-prompt'
-
 import { LookupResolver, Transaction, Utils, WalletClient } from '@bsv/sdk'
 import { HodlockerToken, Token } from './types/types'
 import { Locksmith } from '@bsv/backend'
 
+type LocksmithLike = ReturnType<typeof Locksmith.fromLockingScript> & {
+  address?: { toString: () => string }
+  lockUntilHeight?: number
+  message?: string
+  unlock?: unknown
+}
+
 export const App: React.FC = () => {
   const [isMncMissing, setIsMncMissing] = useState<boolean>(false)
-  const [satoshis, setSatoshis] = useState('')
-  const [lockBlockCount, setLockBlockCount] = useState('')
-  const [message, setMessage] = useState('')
-  const [txid, setTxid] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [satoshis, setSatoshis] = useState<string>('')
+  const [lockBlockCount, setLockBlockCount] = useState<string>('')
+  const [message, setMessage] = useState<string>('')
+  const [txid, setTxid] = useState<string>('')
+  const [loading, setLoading] = useState<boolean>(false)
   const [locks, setLocks] = useState<
-    Array<{ sats: number; left: number; message: string }>
+  Array<{ sats: number, left: number, message: string }>
   >([])
   const [hodlocker, setHodlocker] = useState<HodlockerToken[]>([])
-  const [watchmanStarted, setWatchmanStarted] = useState(false)
 
-  // useAsyncEffect(async () => {
-  //   const intervalId = setInterval(async () => {
-  //     try {
-  //       const hasMNC = await checkForMetaNetClient()
-  //       setIsMncMissing(hasMNC === 0)
-  //     } catch (e) {
-  //       console.error('Error checking MetaNet Client:', e)
-  //     }
-  //   }, 1000)
+  const fetchHodlockerTokens = async (): Promise<void> => {
+    try {
+      console.log('fetchHodlockerTokens from overlay...')
+      const resolver = new LookupResolver({ networkPreset: 'local' })
+      const lookupResult = await resolver.query({
+        service: 'ls_hodlocker',
+        query: { findAll: true }
+      })
 
-  //   return () => {
-  //     clearInterval(intervalId)
-  //   }
-  // }, [])
-
-  useAsyncEffect(() => {
-    const fetchHodlockerTokens = async () => {
-      try {
-        console.log('fetchHodlockerTokens from overlay...')
-        let lookupResult: any = undefined
-
-        try {
-          const resolver = new LookupResolver({ networkPreset: 'local' })
-          lookupResult = await resolver.query({
-            service: 'ls_hodlocker',
-            query: { findAll: true }
-          })
-
-          // Check if the lookup returned a valid output-list
-          if (!lookupResult || lookupResult.type !== 'output-list') {
-            throw new Error('Wrong result type!')
-          }
-        } catch (e) {
-          console.error('❌ Lookup error:', e)
-        }
-
-        if (!lookupResult || lookupResult.outputs.length === 0) {
-          console.warn('⚠️ Still no locked tokens found after findAll()!')
-          return
-        }
-
-        const parsedResults: HodlockerToken[] = []
-
-        for (const result of lookupResult.outputs) {
-          try {
-            // Extract transaction details
-            const tx = Transaction.fromBEEF(result.beef)
-            const txid = tx.id('hex')
-            console.log(`Parsed transaction: ${txid}`)
-
-            const outputs = tx.outputs
-            const outputIndex = Number(result.outputIndex)
-            const output = outputs[outputIndex]
-
-            const script = output.lockingScript.toHex()
-            // console.log('Locking Script:', truncate(script, 80))
-
-            const satoshis = output.satoshis
-            // console.log('Satoshis:', satoshis)
-
-            // ✅ Explicitly cast to `Locksmith`
-            const locksmith = Locksmith.fromLockingScript(script) as Locksmith
-            // console.log('Locksmith:', locksmith)
-
-            const atomicBeefTX = Utils.toHex(tx.toAtomicBEEF())
-            // console.log('atomicBeefTX:', atomicBeefTX)
-
-            // ✅ Extract properties from Locksmith
-            const address = locksmith.address ?? '' // Extract address
-            const lockUntilHeight = Number(locksmith.lockUntilHeight ?? 0) // Convert to number
-            const message = locksmith.message ?? '' // Extract message
-
-            // console.log('Address:', address)
-            // console.log('Lock Until Height:', lockUntilHeight)
-            console.log('Message:', message)
-
-            // Push updated token data into parsedResults
-            parsedResults.push({
-              token: {
-                atomicBeefTX,
-                txid,
-                outputIndex,
-                lockingScript: script,
-                satoshis
-              } as Token,
-              keyID: '1', // No keyID in Locksmith, keep empty
-              lockUntilHeight,
-              message,
-              address
-            })
-          } catch (error) {
-            console.error('❌ Failed to parse Hodlocker token:', error)
-          }
-        }
-
-        // Ensure the update triggers a re-render
-        console.log('Updating state with Hodlocker tokens')
-        setHodlocker([...parsedResults])
-      } catch (error) {
-        console.error('❌ Failed to load Hodlocker tokens:', error)
+      if (
+        lookupResult?.type !== 'output-list' ||
+        !Array.isArray(lookupResult?.outputs)
+      ) {
+        throw new Error('Invalid lookup result')
       }
-    }
 
-    fetchHodlockerTokens()
+      if (lookupResult.outputs.length === 0) {
+        console.warn('⚠️ No hodlocker tokens found in backend response!')
+        return
+      }
+      console.log('lookupResult.outputs:', lookupResult.outputs)
+
+      const parsedResults: HodlockerToken[] = []
+      for (const result of lookupResult.outputs) {
+        try {
+          const tx = Transaction.fromBEEF(result.beef)
+          const txid = tx.id('hex')
+          const outputIndex = Number(result.outputIndex)
+          const output = tx.outputs[outputIndex]
+
+          if (output == null) {
+            throw new Error(`Output ${outputIndex} not found`)
+          }
+
+          const script = output.lockingScript.toHex()
+          const satoshis = output.satoshis
+          const locksmith: LocksmithLike = Locksmith.fromLockingScript(script)
+
+          const token: Token = {
+            atomicBeefTX: Utils.toHex(tx.toAtomicBEEF()),
+            txid,
+            outputIndex,
+            lockingScript: script,
+            satoshis
+          }
+
+          parsedResults.push({
+            token,
+            keyID: '1',
+            lockUntilHeight: Number(locksmith.lockUntilHeight ?? 0),
+            message: locksmith.message ?? '',
+            address: locksmith.address?.toString() ?? ''
+          })
+        } catch (error) {
+          console.error(
+            `❌ Failed to parse Hodlocker token for BEEF ${result.beef
+              .slice(0, 10)
+              .join('')}:`,
+            error
+          )
+        }
+      }
+
+      setHodlocker(prev => {
+        const existingTxids = new Set(prev.map(t => t.token.txid))
+        const newTokens = parsedResults.filter(
+          t => !existingTxids.has(t.token.txid)
+        )
+        const updatedHodlocker = [...prev, ...newTokens]
+        console.log('Updated hodlocker state:', updatedHodlocker)
+        return updatedHodlocker
+      })
+    } catch (error) {
+      console.error('❌ Failed to load Hodlocker tokens:', error)
+    }
+  }
+
+  useEffect(() => {
+    void fetchHodlockerTokens()
   }, [])
 
   useEffect(() => {
-    const fetchLocks = async () => {
-      console.log('Updated hodlockerToken:', hodlocker)
-      //setWatchmanStarted(false)
+    const fetchLocks = async (): Promise<void> => {
       try {
-        const walletClient = new WalletClient('json-api', 'non-admin.com')
+        const walletClient = new WalletClient('json-api', 'localhost')
         const currentBlockHeight = await walletClient.getHeight()
-        console.log('🔍 Current Block Height:', currentBlockHeight.height)
+        console.log('fetchLocks:currentBlockHeight:', currentBlockHeight)
+        if (currentBlockHeight?.height == null) {
+          throw new Error('Failed to fetch block height')
+        }
 
         const lockList = hodlocker.map(lock => ({
           sats: lock.token.satoshis,
@@ -150,92 +129,82 @@ export const App: React.FC = () => {
         }))
 
         setLocks(lockList)
-        console.log('🔍 lockList:', lockList)
-        console.log('🔍 locks:', locks)
 
-        // Check if any locks have become redeemable
         const redeemableTokens = hodlocker.filter(
           lock => lock.lockUntilHeight <= currentBlockHeight.height
         )
 
-        console.log('🔍 Checking for redeemable tokens:', redeemableTokens)
-        //console.log('⏳ watchmanStarted:', watchmanStarted)
-
-        // Only call startBackgroundUnlockWatchman if it's not already started
-        await startBackgroundUnlockWatchman(redeemableTokens) // Make sure to await this call, so it's not called again before it finishes
-
-        // if (redeemableTokens.length > 0) {
-        //   console.log(
-        //     `🔓 Found ${redeemableTokens.length} redeemable tokens, unlocking...`
-        //   )
-        //   //setWatchmanStarted(true) // Update state to prevent duplicate calls
-        //  } else if (redeemableTokens.length === 0) {
-        //   console.log('⏳ No redeemable tokens yet.')
-        // }
+        if (redeemableTokens.length > 0) {
+          console.log('Redeemable tokens detected:', redeemableTokens.length)
+          const redeemed = await startBackgroundUnlockWatchman(redeemableTokens)
+          setHodlocker(prev =>
+            prev.filter(t => !redeemed.some(r => r.token.txid === t.token.txid))
+          )
+          await fetchHodlockerTokens()
+        }
       } catch (error) {
-        console.error(
-          '❌ Failed to fetch lock details:',
-          (error as Error).message
-        )
+        console.error('❌ Failed to fetch lock details:', error)
       }
     }
 
-    // Initial check and then check every 10s
-    fetchLocks()
-    const interval = setInterval(fetchLocks, 10000) // Check every 10s
+    void fetchLocks()
+    const intervalId = setInterval(() => {
+      void fetchLocks()
+    }, 10000)
 
-    return () => clearInterval(interval) // Cleanup on unmount
+    return () => clearInterval(intervalId)
   }, [hodlocker])
 
   const handleSubmit = async (
     e: React.FormEvent<HTMLFormElement>
   ): Promise<void> => {
-    const walletClient = new WalletClient('json-api', 'non-admin.com')
-
-    console.log('handleSubmit:message:', message)
     e.preventDefault()
+    setLoading(true)
     try {
-      setLoading(true)
+      const sats = Number(satoshis)
+      const blocks = Number(lockBlockCount)
+      console.log('handleSubmit: sats:', sats, 'blocks:', blocks)
+      if (Number.isNaN(sats) || Number.isNaN(blocks)) {
+        throw new Error('Invalid number input')
+      }
+
       const deployTxid = await lock(
-        Number(satoshis),
-        Number(lockBlockCount),
+        sats,
+        blocks,
         message,
         setHodlocker,
         hodlocker
       )
-      if (deployTxid !== undefined) {
+      if (deployTxid !== '' && deployTxid !== undefined) {
         setTxid(deployTxid)
       }
-      setLoading(false)
       setMessage('')
       setSatoshis('')
       setLockBlockCount('')
-      //const lockList = await list(walletClient, hodlocker)
-      // if (lockList !== null) {
-      // setLocks(
-      //   lockList as Array<{ sats: number; left: number; message: string }>
-      // )
-      // }
-    } catch (e) {
+      await fetchHodlockerTokens()
+    } catch (error) {
+      window.alert((error as Error).message)
+    } finally {
       setLoading(false)
-      window.alert((e as Error).message)
     }
   }
 
   return (
-    <Container maxWidth="sm" sx={{ paddingTop: '2em' }}>
+    <Container maxWidth='sm' sx={{ paddingTop: '2em' }}>
       <NoMncModal
         open={isMncMissing}
-        onClose={() => {
-          setIsMncMissing(false)
-        }}
-        appName={''}
+        onClose={() => setIsMncMissing(false)}
+        appName=''
       />
       <center style={{ margin: '1em' }}>
-        <form onSubmit={handleSubmit}>
+        <form
+          onSubmit={e => {
+            handleSubmit(e).catch(err => console.error(err))
+          }}
+        >
           <center>
-            <Typography variant="h3">Locksmith</Typography>
-            <Typography variant="h5">
+            <Typography variant='h3'>Locksmith</Typography>
+            <Typography variant='h5'>
               For those of us who think purposely freezing our money for a cause
               is cool.
             </Typography>
@@ -244,45 +213,39 @@ export const App: React.FC = () => {
           <br />
           <TextField
             disabled={loading}
-            type="number"
+            type='number'
             autoFocus
             fullWidth
-            label="satoshis:"
+            label='satoshis:'
             value={satoshis}
             onChange={(e: {
               target: { value: React.SetStateAction<string> }
-            }) => {
-              setSatoshis(e.target.value)
-            }}
+            }) => setSatoshis(e.target.value)}
           />
           <br />
           <br />
           <TextField
             disabled={loading}
-            type="number"
-            label="how many blocks to lock for:"
+            type='number'
+            label='how many blocks to lock for:'
             value={lockBlockCount}
             fullWidth
             onChange={(e: {
               target: { value: React.SetStateAction<string> }
-            }) => {
-              setLockBlockCount(e.target.value)
-            }}
+            }) => setLockBlockCount(e.target.value)}
           />
           <br />
           <br />
           <TextField
             disabled={loading}
-            label="Why? Just why?"
+            label='Why? Just why?'
             value={message}
             fullWidth
             rows={8}
             multiline
             onChange={(e: {
               target: { value: React.SetStateAction<string> }
-            }) => {
-              setMessage(e.target.value)
-            }}
+            }) => setMessage(e.target.value)}
           />
           <br />
           <br />
@@ -294,10 +257,10 @@ export const App: React.FC = () => {
           <br />
           <Button
             disabled={loading}
-            type="submit"
-            variant="contained"
-            size="large"
-            color="primary"
+            type='submit'
+            variant='contained'
+            size='large'
+            color='primary'
           >
             Lock Coins
           </Button>
@@ -312,7 +275,7 @@ export const App: React.FC = () => {
         <br />
         {locks.length > 0 && (
           <div>
-            <Typography variant="h4">Your Current Locks</Typography>
+            <Typography variant='h4'>Your Current Locks</Typography>
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>

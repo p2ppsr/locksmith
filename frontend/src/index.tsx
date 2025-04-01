@@ -17,7 +17,7 @@ const root = ReactDOM.createRoot(rootElement)
 root.render(
   <ThemeProvider theme={web3Theme}>
     <ToastContainer
-      position="top-center"
+      position='top-center'
       autoClose={5000} // auto close after 5 seconds
       hideProgressBar={false}
       newestOnTop={false}
