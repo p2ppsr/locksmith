@@ -1,5 +1,4 @@
 import { LocksmithArtifact, Locksmith } from '@bsv/backend'
-import { LocksmithArtifact, Locksmith } from '@bsv/backend'
 import {
   WalletClient,
   Transaction,
@@ -126,10 +125,9 @@ export const lock = async (
   const transaction = Transaction.fromAtomicBEEF(newHodlockerToken.tx)
   const txid: string = transaction.id('hex')
 
-  const args: SHIPBroadcasterConfig = {
+  const broadcaster = new SHIPBroadcaster(['tm_hodlocker'], {
     networkPreset: 'local'
-  }
-  const broadcaster = new SHIPBroadcaster(['tm_hodlocker'], args)
+  })
   const broadcasterResult = await broadcaster.broadcast(transaction)
 
   if (broadcasterResult.status === 'error') {
