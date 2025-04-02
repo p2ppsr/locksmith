@@ -156,105 +156,118 @@ export const lock = async (
 }
 
 /**
- * Monitors Hodlocker tokens and unlocks them when their lock height is reached.
+ * Monitors Hodlocker tokens and unlocks them when their lock height is reached, preventing double redemption.
  *
- * @param hodlocker - Array of Hodlocker tokens to monitor.
- * @returns Array of successfully redeemed tokens.
- * @throws Logs errors for individual unlock failures but continues processing.
+ * @param hodlocker - Array of Hodlocker tokens to monitor and potentially unlock.
+ * @param unlockedTxids - Set of TXIDs for tokens that are being unlocked or have been successfully unlocked.
+ * @param setUnlockedTxids - Function to update the set of unlocked TXIDs, ensuring React state consistency.
+ * @returns Promise resolving to an array of Hodlocker tokens that were successfully unlocked in this call.
+ * @throws Logs errors for individual unlock failures and continues processing remaining tokens; 
+ *         removes failed TXIDs from `unlockedTxids` to allow retries.
  */
 export const startBackgroundUnlockWatchman = async (
-  hodlocker: HodlockerToken[]
+  hodlocker: HodlockerToken[],
+  unlockedTxids: Set<string>,
+  setUnlockedTxids: React.Dispatch<React.SetStateAction<Set<string>>>
 ): Promise<HodlockerToken[]> => {
-  console.log('startBackgroundUnlockWatchman')
-  const walletClient = new WalletClient('json-api', 'localhost')
-  const redeemedTokens: HodlockerToken[] = []
+  console.log('startBackgroundUnlockWatchman');
+  const walletClient = new WalletClient('json-api', 'localhost');
+  const redeemedTokens: HodlockerToken[] = [];
 
   try {
-    const currentBlockHeight = await walletClient.getHeight()
-    console.log(
-      'startBackgroundUnlockWatchman:currentBlockHeight:',
-      currentBlockHeight
-    )
+    const currentBlockHeight = await walletClient.getHeight();
+    console.log('startBackgroundUnlockWatchman:currentBlockHeight:', currentBlockHeight);
 
     for (const hodlock of hodlocker) {
-      const { token, keyID, lockUntilHeight } = hodlock
+      const { token, keyID, lockUntilHeight } = hodlock;
+
+      // Skip if token is already unlocked or being unlocked
+      if (unlockedTxids.has(token.txid)) {
+        console.log(`Skipping already unlocked token ${token.txid}`);
+        continue;
+      }
 
       if (currentBlockHeight.height < lockUntilHeight) {
-        continue
+        continue;
       }
 
       try {
-        const LocksmithContract = Locksmith.fromLockingScript(
-          token.lockingScript
-        )
-        const atomicBeef = Utils.toArray(token.atomicBeefTX, 'hex')
-        const tx = Transaction.fromAtomicBEEF(atomicBeef)
-        const parsedFromTx = new bsv.Transaction(tx.toHex())
+        // Mark token as being unlocked
+        setUnlockedTxids(prev => new Set(prev).add(token.txid));
+        console.log(`Processing unlock for token ${token.txid}`);
+
+        const LocksmithContract = Locksmith.fromLockingScript(token.lockingScript);
+        const atomicBeef = Utils.toArray(token.atomicBeefTX, 'hex');
+        const tx = Transaction.fromAtomicBEEF(atomicBeef);
+        const parsedFromTx = new bsv.Transaction(tx.toHex());
 
         if (
           parsedFromTx.inputs.length === 0 ||
           parsedFromTx.inputs[0]?.prevTxId === undefined
         ) {
-          console.error(
-            `❌ Invalid inputs in transaction for txid ${String(token.txid)}`
-          )
-          continue
+          console.error(`❌ Invalid inputs in transaction for txid ${String(token.txid)}`);
+          setUnlockedTxids(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(token.txid); // Remove on failure
+            return newSet;
+          });
+          continue;
         }
 
         const unlockingScript = await LocksmithContract.getUnlockingScript(
           async (self: SmartContract) => {
-            const locksmithSelf = self as Locksmith
+            const locksmithSelf = self as Locksmith;
 
-            const bsvtx = new bsv.Transaction()
+            const bsvtx = new bsv.Transaction();
             bsvtx.from({
               txId: token.txid,
               outputIndex: token.outputIndex,
               script: token.lockingScript,
-              satoshis: token.satoshis
-            })
-            bsvtx.inputs[0].sequenceNumber = 0xfffffffe
-            bsvtx.nLockTime = lockUntilHeight
+              satoshis: token.satoshis,
+            });
+            bsvtx.inputs[0].sequenceNumber = 0xfffffffe;
+            bsvtx.nLockTime = lockUntilHeight;
 
             const hashType =
               bsv.crypto.Signature.SIGHASH_NONE |
               bsv.crypto.Signature.SIGHASH_ANYONECANPAY |
-              bsv.crypto.Signature.SIGHASH_FORKID
-            const scriptInstance = bsv.Script.fromHex(token.lockingScript)
+              bsv.crypto.Signature.SIGHASH_FORKID;
+            const scriptInstance = bsv.Script.fromHex(token.lockingScript);
             const preimage = bsv.Transaction.Sighash.sighashPreimage(
               bsvtx,
               hashType,
               0,
               scriptInstance,
               new bsv.crypto.BN(token.satoshis)
-            )
-            const preimageHash = bsv.crypto.Hash.sha256(preimage)
+            );
+            const preimageHash = bsv.crypto.Hash.sha256(preimage);
 
             const sdkSignature = await walletClient.createSignature({
               protocolID: [0, 'hodlocker'],
               keyID,
               counterparty: 'self',
-              data: Array.from(preimageHash)
-            })
+              data: Array.from(preimageHash),
+            });
 
-            const signatureBuf = Buffer.from(sdkSignature.signature)
-            const signature = bsv.crypto.Signature.fromDER(signatureBuf)
-            signature.nhashtype = hashType
+            const signatureBuf = Buffer.from(sdkSignature.signature);
+            const signature = bsv.crypto.Signature.fromDER(signatureBuf);
+            signature.nhashtype = hashType;
 
             const publicKeyResp = await walletClient.getPublicKey({
               protocolID: [0, 'hodlocker'],
               keyID,
-              counterparty: 'self'
-            })
-            const publicKeyHex = publicKeyResp.publicKey
+              counterparty: 'self',
+            });
+            const publicKeyHex = publicKeyResp.publicKey;
 
-            locksmithSelf.to = { tx: bsvtx, inputIndex: 0 }
-            locksmithSelf.from = { tx: parsedFromTx, outputIndex: 0 }
+            locksmithSelf.to = { tx: bsvtx, inputIndex: 0 };
+            locksmithSelf.from = { tx: parsedFromTx, outputIndex: 0 };
             locksmithSelf.unlock(
               Sig(toByteString(signature.toTxFormat().toString('hex'))),
               PubKey(toByteString(publicKeyHex))
-            )
+            );
           }
-        )
+        );
 
         const broadcastActionParams: CreateActionArgs = {
           description: 'Unlock Locksmith contract',
@@ -262,53 +275,48 @@ export const startBackgroundUnlockWatchman = async (
           lockTime: lockUntilHeight,
           inputs: [
             {
-              outpoint: `${String(token.txid)}.${Number(
-                token.outputIndex
-              )}` as const,
+              outpoint: `${String(token.txid)}.${Number(token.outputIndex)}` as const,
               unlockingScript: unlockingScript.toHex(),
               sequenceNumber: 0xfffffffe,
-              inputDescription: 'Unlocking Locksmith contract'
-            }
+              inputDescription: 'Unlocking Locksmith contract',
+            },
           ],
           options: {
-            acceptDelayedBroadcast: true
-          }
-        }
+            acceptDelayedBroadcast: true,
+          },
+        };
 
-        const newToken = await walletClient.createAction(broadcastActionParams)
-        throwIfAnyUnsuccessfulCreateActions(newToken)
+        const newToken = await walletClient.createAction(broadcastActionParams);
+        throwIfAnyUnsuccessfulCreateActions(newToken);
 
         if (newToken.txid === undefined || newToken.txid === null) {
-          throw new Error(
-            `Transaction creation failed for ${String(
-              token.txid
-            )}: txid is undefined`
-          )
+          throw new Error(`Transaction creation failed for ${String(token.txid)}: txid is undefined`);
         }
         if (newToken.tx === undefined || newToken.tx === null) {
-          throw new Error(`Transaction data missing for ${String(token.txid)}`)
+          throw new Error(`Transaction data missing for ${String(token.txid)}`);
         }
 
-        await new SHIPBroadcaster(['tm_hodlocker'], {
-          networkPreset: 'local'
-        }).broadcast(Transaction.fromAtomicBEEF(newToken.tx))
+        await new SHIPBroadcaster(['tm_hodlocker'], { networkPreset: 'local' }).broadcast(
+          Transaction.fromAtomicBEEF(newToken.tx)
+        );
 
-        console.log(`✅ Successfully unlocked token ${String(token.txid)}`)
-        redeemedTokens.push(hodlock)
+        console.log(`✅ Successfully unlocked token ${String(token.txid)}`);
+        redeemedTokens.push(hodlock);
       } catch (error) {
-        console.error(
-          `❌ Error unlocking contract ${String(token.txid)}:`,
-          (error as Error).message
-        )
-        continue
+        console.error(`❌ Error unlocking contract ${String(token.txid)}:`, (error as Error).message);
+        setUnlockedTxids(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(token.txid); // Remove on failure to allow retry
+          return newSet;
+        });
       }
     }
   } catch (error) {
-    console.error('❌ Error in watchman execution:', (error as Error).message)
+    console.error('❌ Error in watchman execution:', (error as Error).message);
   }
 
-  return redeemedTokens
-}
+  return redeemedTokens;
+};
 
 /**
  * Truncates a string to a specified length, appending "..." if needed.

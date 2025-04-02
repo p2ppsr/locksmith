@@ -11,18 +11,14 @@ import locksmithContractJson from '../../artifacts/Locksmith.json' with { type: 
 import { LocksmithContract } from '../contracts/Locksmith.js'
 import { Db } from 'mongodb'
 
-// Load contract artifact
 LocksmithContract.loadArtifact(locksmithContractJson)
 
-/**
- * Implements a Hodlocker lookup service
- */
 export class HodlockerLookupService implements LookupService {
   constructor (public storage: HodlockerStorage) {
-    console.log('[HodlockerLookupService] Initialized')
+    console.log('[DEBUG] Initialized')
   }
 
-  async outputAdded? (
+  async outputAdded (
     txid: string,
     outputIndex: number,
     outputScript: Script,
@@ -46,11 +42,12 @@ export class HodlockerLookupService implements LookupService {
       const address = hodlocker.address?.toString()
       const lockUntilHeight = Number(hodlocker.lockUntilHeight)
       const message = hodlocker.message
-      console.log('[DEBUG] outputAdded():address:', address)
-      console.log('[DEBUG] outputAdded():lockUntilHeight:', lockUntilHeight)
-      console.log('[DEBUG] outputAdded():message:', message)
 
-      if (!address || !lockUntilHeight || !message) {
+      if (
+        address === undefined ||
+        lockUntilHeight === undefined ||
+        message === undefined
+      ) {
         console.log('[DEBUG] outputAdded() missing fields:', {
           address,
           lockUntilHeight,
@@ -66,7 +63,6 @@ export class HodlockerLookupService implements LookupService {
         lockUntilHeight,
         message
       })
-
       await this.storage.storeRecord(
         txid,
         outputIndex,
@@ -75,39 +71,37 @@ export class HodlockerLookupService implements LookupService {
         message
       )
     } catch (e) {
-      console.error('[ERROR] outputAdded() failed:', e)
+      console.error('❌  outputAdded() failed:', e)
     }
   }
 
-  async outputSpent? (
+  async outputSpent (
     txid: string,
     outputIndex: number,
     topic: string
   ): Promise<void> {
     console.log(
-      `[HodlockerLookupService] outputSpent called for txid: ${txid}, outputIndex: ${outputIndex}, topic: ${topic}`
+      `[DEBUG] outputSpent called for txid: ${txid}, outputIndex: ${outputIndex}, topic: ${topic}`
     )
-
     if (topic === 'tm_hodlocker') {
       console.log(
-        `[HodlockerLookupService] Deleting Hodlocker record for spent output: txid=${txid}, outputIndex=${outputIndex}`
+        `[DEBUG] Deleting Hodlocker record for spent output: txid=${txid}, outputIndex=${outputIndex}`
       )
       await this.storage.deleteRecord(txid, outputIndex)
     }
   }
 
-  async outputDeleted? (
+  async outputDeleted (
     txid: string,
     outputIndex: number,
     topic: string
   ): Promise<void> {
     console.log(
-      `[HodlockerLookupService] outputDeleted called for txid: ${txid}, outputIndex: ${outputIndex}, topic: ${topic}`
+      `[DEBUG] outputDeleted called for txid: ${txid}, outputIndex: ${outputIndex}, topic: ${topic}`
     )
-
     if (topic === 'tm_hodlocker') {
       console.log(
-        `[HodlockerLookupService] Deleting Hodlocker record for deleted output: txid=${txid}, outputIndex=${outputIndex}`
+        `[DEBUG] Deleting Hodlocker record for deleted output: txid=${txid}, outputIndex=${outputIndex}`
       )
       await this.storage.deleteRecord(txid, outputIndex)
     }
@@ -117,18 +111,16 @@ export class HodlockerLookupService implements LookupService {
     question: LookupQuestion
   ): Promise<LookupAnswer | LookupFormula> {
     console.log(
-      `[HodlockerLookupService] lookup called with question: ${JSON.stringify(question)}`
+      `[DEBUG] lookup called with question: ${JSON.stringify(question)}`
     )
 
-    if (!question.query) {
-      console.error('[HodlockerLookupService] Invalid query received')
+    if (question.query == null) {
+      console.error('❌ Invalid query received')
       throw new Error('A valid query must be provided!')
     }
 
     if (question.service !== 'ls_hodlocker') {
-      console.error(
-        `[HodlockerLookupService] Unsupported lookup service: ${question.service}`
-      )
+      console.error(`❌ Unsupported lookup service: ${question.service}`)
       throw new Error('Lookup service not supported!')
     }
 
@@ -139,11 +131,13 @@ export class HodlockerLookupService implements LookupService {
       message: string
       findAll?: boolean
     }
-    if (query.findAll) {
+
+    if (typeof query.findAll !== 'undefined' && query.findAll) {
       return await this.storage.findAll()
     }
+
     const mess = JSON.stringify(question, null, 2)
-    throw new Error(`question.query:${mess}}`)
+    throw new Error(`❌ question.query:${mess}`)
   }
 
   async getDocumentation (): Promise<string> {
@@ -164,7 +158,6 @@ export class HodlockerLookupService implements LookupService {
   }
 }
 
-// Factory export
 export default (db: Db): HodlockerLookupService => {
   return new HodlockerLookupService(new HodlockerStorage(db))
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   TextField,
   Button,
@@ -30,6 +30,8 @@ export const App: React.FC = () => {
     Array<{ sats: number; left: number; message: string }>
   >([])
   const [hodlocker, setHodlocker] = useState<HodlockerToken[]>([])
+  // New state to track unlocked tokens
+  const [unlockedTxids, setUnlockedTxids] = useState<Set<string>>(new Set())
 
   const fetchHodlockerTokens = async (): Promise<void> => {
     try {
@@ -112,48 +114,71 @@ export const App: React.FC = () => {
     void fetchHodlockerTokens()
   }, [])
 
-  useEffect(() => {
-    const fetchLocks = async (): Promise<void> => {
-      try {
-        const walletClient = new WalletClient('json-api', 'localhost')
-        const currentBlockHeight = await walletClient.getHeight()
-        console.log('fetchLocks:currentBlockHeight:', currentBlockHeight)
-        if (currentBlockHeight?.height == null) {
-          throw new Error('Failed to fetch block height')
-        }
+  interface BlockHeight {
+    height: number
+  }
 
-        const lockList = hodlocker.map(lock => ({
-          sats: lock.token.satoshis,
-          left: lock.lockUntilHeight - currentBlockHeight.height,
-          message: Buffer.from(lock.message, 'hex').toString('utf8')
-        }))
+  const fetchLocks = useCallback(async (): Promise<void> => {
+    try {
+      console.log('fetchLocks: Starting...')
+      const walletClient = new WalletClient('json-api', 'localhost')
+      console.log('fetchLocks: Fetching block height...')
 
-        setLocks(lockList)
-
-        const redeemableTokens = hodlocker.filter(
-          lock => lock.lockUntilHeight <= currentBlockHeight.height
+      // Required to fix hang if getHeight() fails during hot reload
+      const currentBlockHeight = (await Promise.race([
+        walletClient.getHeight() as Promise<BlockHeight>,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('getHeight timed out')), 5000)
         )
-
-        if (redeemableTokens.length > 0) {
-          console.log('Redeemable tokens detected:', redeemableTokens.length)
-          const redeemed = await startBackgroundUnlockWatchman(redeemableTokens)
-          setHodlocker(prev =>
-            prev.filter(t => !redeemed.some(r => r.token.txid === t.token.txid))
-          )
-          await fetchHodlockerTokens()
-        }
-      } catch (error) {
-        console.error('❌ Failed to fetch lock details:', error)
+      ])) as BlockHeight
+      console.log('fetchLocks:currentBlockHeight:', currentBlockHeight)
+      if (currentBlockHeight?.height == null) {
+        throw new Error('Failed to fetch block height')
       }
+
+      const lockList = hodlocker.map(lock => ({
+        sats: lock.token.satoshis,
+        left: lock.lockUntilHeight - currentBlockHeight.height,
+        message: Buffer.from(lock.message, 'hex').toString('utf8')
+      }))
+
+      console.log('fetchLocks: Setting locks...', lockList)
+      setLocks(lockList)
+
+      const redeemableTokens = hodlocker.filter(
+        lock => lock.lockUntilHeight <= currentBlockHeight.height
+      )
+
+      if (redeemableTokens.length > 0) {
+        console.log('Redeemable tokens detected:', redeemableTokens.length)
+        console.log('fetchLocks: Starting unlock watchman...')
+        const redeemed = await startBackgroundUnlockWatchman(
+          redeemableTokens,
+          unlockedTxids,
+          setUnlockedTxids
+        )
+        console.log('fetchLocks: Redeemed tokens:', redeemed)
+        setHodlocker(prev => {
+          const updated = prev.filter(
+            t => !redeemed.some(r => r.token.txid === t.token.txid)
+          )
+          console.log('setHodlocker: Updated state:', updated)
+          return updated
+        })
+        console.log('fetchLocks: Fetching hodlocker tokens after redeem...')
+        await fetchHodlockerTokens()
+      }
+      console.log('fetchLocks: Completed')
+    } catch (error) {
+      console.error('❌ Failed to fetch lock details:', error)
     }
+  }, [hodlocker, unlockedTxids])
 
+  useEffect(() => {
     void fetchLocks()
-    const intervalId = setInterval(() => {
-      void fetchLocks()
-    }, 10000)
-
+    const intervalId = setInterval(() => void fetchLocks(), 10000)
     return () => clearInterval(intervalId)
-  }, [hodlocker])
+  }, [fetchLocks])
 
   const handleSubmit = async (
     e: React.FormEvent<HTMLFormElement>
