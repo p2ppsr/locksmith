@@ -12,11 +12,18 @@ import { LookupResolver, Transaction, Utils, WalletClient } from '@bsv/sdk'
 import { HodlockerToken, Token } from './types/types'
 import { Locksmith } from '@bsv/backend'
 
+// Global throttle flag to prevent overlapping fetchLocks calls
+let isFetching = false
+
 type LocksmithLike = ReturnType<typeof Locksmith.fromLockingScript> & {
   address?: { toString: () => string }
   lockUntilHeight?: number
   message?: string
   unlock?: unknown
+}
+
+interface BlockHeight {
+  height: number
 }
 
 export const App: React.FC = () => {
@@ -30,8 +37,11 @@ export const App: React.FC = () => {
     Array<{ sats: number; left: number; message: string }>
   >([])
   const [hodlocker, setHodlocker] = useState<HodlockerToken[]>([])
-  // New state to track unlocked tokens
   const [unlockedTxids, setUnlockedTxids] = useState<Set<string>>(new Set())
+  // New state for wallet connection status
+  const [walletStatus, setWalletStatus] = useState<
+    'connecting' | 'connected' | 'disconnected'
+  >('connecting')
 
   const fetchHodlockerTokens = async (): Promise<void> => {
     try {
@@ -51,6 +61,7 @@ export const App: React.FC = () => {
 
       if (lookupResult.outputs.length === 0) {
         console.log('No hodlocker tokens found in backend response')
+        setHodlocker([])
         return
       }
       console.log('lookupResult.outputs:', lookupResult.outputs)
@@ -114,25 +125,56 @@ export const App: React.FC = () => {
     void fetchHodlockerTokens()
   }, [])
 
-  interface BlockHeight {
-    height: number
+  const waitForWallet = async (
+    walletClient: WalletClient
+  ): Promise<BlockHeight> => {
+    const maxAttempts = 5
+    const delayMs = 2000
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(
+          `Attempting to fetch block height (attempt ${attempt}/${maxAttempts})...`
+        )
+        const height: BlockHeight = await walletClient.getHeight()
+        if (height?.height != null) {
+          setWalletStatus('connected')
+          return height
+        }
+        throw new Error('Height is null or undefined')
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        console.warn(
+          `Wallet not ready: ${errorMessage}. Retrying in ${delayMs}ms...`
+        )
+        setWalletStatus('disconnected')
+        if (attempt === maxAttempts) {
+          throw new Error('Wallet authentication failed after max attempts')
+        }
+        await new Promise(resolve => setTimeout(resolve, delayMs))
+      }
+    }
+    throw new Error('Unexpected exit from waitForWallet')
   }
 
   const fetchLocks = useCallback(async (): Promise<void> => {
+    if (isFetching) {
+      console.log('fetchLocks: Skipped (already fetching)')
+      return
+    }
+    isFetching = true
     try {
       console.log('fetchLocks: Starting...')
+      if (hodlocker.length === 0) {
+        console.log('fetchLocks: No hodlocker tokens yet, skipping locks...')
+        setLocks([])
+        return
+      }
       const walletClient = new WalletClient('json-api', 'localhost')
       console.log('fetchLocks: Fetching block height...')
-
-      // Required to fix hang if getHeight() fails during hot reload
-      const currentBlockHeight = (await Promise.race([
-        walletClient.getHeight() as Promise<BlockHeight>,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('getHeight timed out')), 5000)
-        )
-      ])) as BlockHeight
+      const currentBlockHeight: BlockHeight = await waitForWallet(walletClient)
       console.log('fetchLocks:currentBlockHeight:', currentBlockHeight)
-      if (currentBlockHeight?.height == null) {
+      if (currentBlockHeight.height == null) {
         throw new Error('Failed to fetch block height')
       }
 
@@ -171,13 +213,32 @@ export const App: React.FC = () => {
       console.log('fetchLocks: Completed')
     } catch (error) {
       console.error('❌ Failed to fetch lock details:', error)
+    } finally {
+      isFetching = false
     }
   }, [hodlocker, unlockedTxids])
 
   useEffect(() => {
-    void fetchLocks()
-    const intervalId = setInterval(() => void fetchLocks(), 10000)
-    return () => clearInterval(intervalId)
+    console.log('useEffect: Initializing fetchLocks interval')
+    let isMounted = true
+    let intervalId: NodeJS.Timeout | null = null
+
+    const runFetchLocks = async () => {
+      if (!isMounted) {
+        console.log('fetchLocks: Skipped (unmounted)')
+        return
+      }
+      await fetchLocks()
+    }
+
+    void runFetchLocks() // Immediate first run
+    intervalId = setInterval(() => void runFetchLocks(), 10000)
+
+    return () => {
+      console.log('useEffect: Cleaning up')
+      isMounted = false
+      if (intervalId) clearInterval(intervalId)
+    }
   }, [fetchLocks])
 
   const handleSubmit = async (
@@ -233,11 +294,23 @@ export const App: React.FC = () => {
               For those of us who think purposely freezing our money for a cause
               is cool.
             </Typography>
+            {/* Wallet Status Indicator */}
+            <Typography
+              variant="body1"
+              color={walletStatus === 'disconnected' ? 'error' : 'textPrimary'}
+            >
+              Wallet Status:{' '}
+              {walletStatus === 'connecting'
+                ? 'Connecting...'
+                : walletStatus === 'connected'
+                ? 'Connected'
+                : 'Disconnected'}
+            </Typography>
           </center>
           <br />
           <br />
           <TextField
-            disabled={loading}
+            disabled={loading || walletStatus === 'disconnected'}
             type="number"
             autoFocus
             fullWidth
@@ -250,7 +323,7 @@ export const App: React.FC = () => {
           <br />
           <br />
           <TextField
-            disabled={loading}
+            disabled={loading || walletStatus === 'disconnected'}
             type="number"
             label="how many blocks to lock for:"
             value={lockBlockCount}
@@ -262,7 +335,7 @@ export const App: React.FC = () => {
           <br />
           <br />
           <TextField
-            disabled={loading}
+            disabled={loading || walletStatus === 'disconnected'}
             label="Why? Just why?"
             value={message}
             fullWidth
@@ -281,7 +354,7 @@ export const App: React.FC = () => {
           <br />
           <br />
           <Button
-            disabled={loading}
+            disabled={loading || walletStatus === 'disconnected'}
             type="submit"
             variant="contained"
             size="large"
