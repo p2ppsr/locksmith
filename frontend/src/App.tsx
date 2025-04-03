@@ -6,7 +6,7 @@ import {
   LinearProgress,
   Container
 } from '@mui/material'
-import { lock, startBackgroundUnlockWatchman } from './utils/utils'
+import { lock, startBackgroundUnlockWatchman, truncate } from './utils/utils'
 import { NoMncModal } from 'metanet-react-prompt'
 import { LookupResolver, Transaction, Utils, WalletClient } from '@bsv/sdk'
 import { HodlockerToken, Token } from './types/types'
@@ -242,14 +242,16 @@ export const App: React.FC = () => {
           <br />
           <TextField
             disabled={loading}
-            label="Your message:"
+            label="Your message 1 -> 256 chars:"
             value={message}
             fullWidth
             rows={8}
             multiline
-            onChange={(e: {
-              target: { value: React.SetStateAction<string> }
-            }) => setMessage(e.target.value)}
+            inputProps={{ maxLength: 256 }}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              const truncated = truncate(e.target.value, 256)
+              setMessage(truncated)
+            }}
           />
           <br />
           <br />
