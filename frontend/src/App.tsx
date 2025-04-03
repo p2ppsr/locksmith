@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   TextField,
   Button,
@@ -11,19 +11,13 @@ import { NoMncModal } from 'metanet-react-prompt'
 import { LookupResolver, Transaction, Utils, WalletClient } from '@bsv/sdk'
 import { HodlockerToken, Token } from './types/types'
 import { Locksmith } from '@bsv/backend'
-
-// Global throttle flag to prevent overlapping fetchLocks calls
-let isFetching = false
+import constants from './utils/constants'
 
 type LocksmithLike = ReturnType<typeof Locksmith.fromLockingScript> & {
   address?: { toString: () => string }
   lockUntilHeight?: number
   message?: string
   unlock?: unknown
-}
-
-interface BlockHeight {
-  height: number
 }
 
 export const App: React.FC = () => {
@@ -37,16 +31,13 @@ export const App: React.FC = () => {
     Array<{ sats: number; left: number; message: string }>
   >([])
   const [hodlocker, setHodlocker] = useState<HodlockerToken[]>([])
-  const [unlockedTxids, setUnlockedTxids] = useState<Set<string>>(new Set())
-  // New state for wallet connection status
-  const [walletStatus, setWalletStatus] = useState<
-    'connecting' | 'connected' | 'disconnected'
-  >('connecting')
 
   const fetchHodlockerTokens = async (): Promise<void> => {
     try {
       console.log('fetchHodlockerTokens from overlay...')
-      const resolver = new LookupResolver({ networkPreset: 'local' })
+      const resolver = new LookupResolver({
+        networkPreset: constants.networkPreset
+      })
       const lookupResult = await resolver.query({
         service: 'ls_hodlocker',
         query: { findAll: true }
@@ -60,8 +51,6 @@ export const App: React.FC = () => {
       }
 
       if (lookupResult.outputs.length === 0) {
-        console.log('No hodlocker tokens found in backend response')
-        setHodlocker([])
         return
       }
       console.log('lookupResult.outputs:', lookupResult.outputs)
@@ -99,7 +88,7 @@ export const App: React.FC = () => {
           })
         } catch (error) {
           console.error(
-            `❌ Failed to parse Hodlocker token for BEEF ${result.beef
+            `Failed to parse Hodlocker token for BEEF ${result.beef
               .slice(0, 10)
               .join('')}:`,
             error
@@ -117,7 +106,7 @@ export const App: React.FC = () => {
         return updatedHodlocker
       })
     } catch (error) {
-      console.error('❌ Failed to load Hodlocker tokens:', error)
+      console.error('Failed to load Hodlocker tokens:', error)
     }
   }
 
@@ -125,121 +114,47 @@ export const App: React.FC = () => {
     void fetchHodlockerTokens()
   }, [])
 
-  const waitForWallet = async (
-    walletClient: WalletClient
-  ): Promise<BlockHeight> => {
-    const maxAttempts = 5
-    const delayMs = 2000
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        console.log(
-          `Attempting to fetch block height (attempt ${attempt}/${maxAttempts})...`
-        )
-        const height: BlockHeight = await walletClient.getHeight()
-        if (height?.height != null) {
-          setWalletStatus('connected')
-          return height
-        }
-        throw new Error('Height is null or undefined')
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error)
-        console.warn(
-          `Wallet not ready: ${errorMessage}. Retrying in ${delayMs}ms...`
-        )
-        setWalletStatus('disconnected')
-        if (attempt === maxAttempts) {
-          throw new Error('Wallet authentication failed after max attempts')
-        }
-        await new Promise(resolve => setTimeout(resolve, delayMs))
-      }
-    }
-    throw new Error('Unexpected exit from waitForWallet')
-  }
-
-  const fetchLocks = useCallback(async (): Promise<void> => {
-    if (isFetching) {
-      console.log('fetchLocks: Skipped (already fetching)')
-      return
-    }
-    isFetching = true
-    try {
-      console.log('fetchLocks: Starting...')
-      if (hodlocker.length === 0) {
-        console.log('fetchLocks: No hodlocker tokens yet, skipping locks...')
-        setLocks([])
-        return
-      }
-      const walletClient = new WalletClient('json-api', 'localhost')
-      console.log('fetchLocks: Fetching block height...')
-      const currentBlockHeight: BlockHeight = await waitForWallet(walletClient)
-      console.log('fetchLocks:currentBlockHeight:', currentBlockHeight)
-      if (currentBlockHeight.height == null) {
-        throw new Error('Failed to fetch block height')
-      }
-
-      const lockList = hodlocker.map(lock => ({
-        sats: lock.token.satoshis,
-        left: lock.lockUntilHeight - currentBlockHeight.height,
-        message: Buffer.from(lock.message, 'hex').toString('utf8')
-      }))
-
-      console.log('fetchLocks: Setting locks...', lockList)
-      setLocks(lockList)
-
-      const redeemableTokens = hodlocker.filter(
-        lock => lock.lockUntilHeight <= currentBlockHeight.height
-      )
-
-      if (redeemableTokens.length > 0) {
-        console.log('Redeemable tokens detected:', redeemableTokens.length)
-        console.log('fetchLocks: Starting unlock watchman...')
-        const redeemed = await startBackgroundUnlockWatchman(
-          redeemableTokens,
-          unlockedTxids,
-          setUnlockedTxids
-        )
-        console.log('fetchLocks: Redeemed tokens:', redeemed)
-        setHodlocker(prev => {
-          const updated = prev.filter(
-            t => !redeemed.some(r => r.token.txid === t.token.txid)
-          )
-          console.log('setHodlocker: Updated state:', updated)
-          return updated
-        })
-        console.log('fetchLocks: Fetching hodlocker tokens after redeem...')
-        await fetchHodlockerTokens()
-      }
-      console.log('fetchLocks: Completed')
-    } catch (error) {
-      console.error('❌ Failed to fetch lock details:', error)
-    } finally {
-      isFetching = false
-    }
-  }, [hodlocker, unlockedTxids])
-
   useEffect(() => {
-    console.log('useEffect: Initializing fetchLocks interval')
-    let isMounted = true
-    let intervalId: NodeJS.Timeout | null = null
+    const fetchLocks = async (): Promise<void> => {
+      try {
+        const currentBlockHeight = await constants.walletClient.getHeight()
+        console.log('fetchLocks:currentBlockHeight:', currentBlockHeight)
+        if (currentBlockHeight?.height == null) {
+          throw new Error('Failed to fetch block height')
+        }
 
-    const runFetchLocks = async () => {
-      if (!isMounted) {
-        console.log('fetchLocks: Skipped (unmounted)')
-        return
+        const lockList = hodlocker.map(lock => ({
+          sats: lock.token.satoshis,
+          left: lock.lockUntilHeight - currentBlockHeight.height,
+          message: Buffer.from(lock.message, 'hex').toString('utf8')
+        }))
+
+        setLocks(lockList)
+
+        const redeemableTokens = hodlocker.filter(
+          lock => lock.lockUntilHeight <= currentBlockHeight.height
+        )
+
+        if (redeemableTokens.length > 0) {
+          console.log('Redeemable tokens detected:', redeemableTokens.length)
+          const redeemed = await startBackgroundUnlockWatchman(redeemableTokens)
+          setHodlocker(prev =>
+            prev.filter(t => !redeemed.some(r => r.token.txid === t.token.txid))
+          )
+          await fetchHodlockerTokens()
+        }
+      } catch (error) {
+        console.error('Failed to fetch lock details:', error)
       }
-      await fetchLocks()
     }
 
-    void runFetchLocks() // Immediate first run
-    intervalId = setInterval(() => void runFetchLocks(), 10000)
+    void fetchLocks()
+    const intervalId = setInterval(() => {
+      void fetchLocks()
+    }, 10000)
 
-    return () => {
-      console.log('useEffect: Cleaning up')
-      isMounted = false
-      if (intervalId) clearInterval(intervalId)
-    }
-  }, [fetchLocks])
+    return () => clearInterval(intervalId)
+  }, [hodlocker])
 
   const handleSubmit = async (
     e: React.FormEvent<HTMLFormElement>
@@ -253,10 +168,11 @@ export const App: React.FC = () => {
       if (Number.isNaN(sats) || Number.isNaN(blocks)) {
         throw new Error('Invalid number input')
       }
+      const safeBlockCount = Math.max(0, blocks)
 
       const deployTxid = await lock(
         sats,
-        blocks,
+        safeBlockCount,
         message,
         setHodlocker,
         hodlocker
@@ -294,27 +210,16 @@ export const App: React.FC = () => {
               For those of us who think purposely freezing our money for a cause
               is cool.
             </Typography>
-            {/* Wallet Status Indicator */}
-            <Typography
-              variant="body1"
-              color={walletStatus === 'disconnected' ? 'error' : 'textPrimary'}
-            >
-              Wallet Status:{' '}
-              {walletStatus === 'connecting'
-                ? 'Connecting...'
-                : walletStatus === 'connected'
-                ? 'Connected'
-                : 'Disconnected'}
-            </Typography>
           </center>
           <br />
           <br />
           <TextField
-            disabled={loading || walletStatus === 'disconnected'}
+            disabled={loading}
             type="number"
             autoFocus
             fullWidth
-            label="satoshis:"
+            inputProps={{ min: 10, max: 1000 }}
+            label="satoshis (10 -> 1000):"
             value={satoshis}
             onChange={(e: {
               target: { value: React.SetStateAction<string> }
@@ -323,9 +228,10 @@ export const App: React.FC = () => {
           <br />
           <br />
           <TextField
-            disabled={loading || walletStatus === 'disconnected'}
+            disabled={loading}
             type="number"
-            label="how many blocks to lock for:"
+            inputProps={{ min: 1, max: 10 }}
+            label="how many blocks to lock for (1 -> 10):"
             value={lockBlockCount}
             fullWidth
             onChange={(e: {
@@ -335,8 +241,8 @@ export const App: React.FC = () => {
           <br />
           <br />
           <TextField
-            disabled={loading || walletStatus === 'disconnected'}
-            label="Why? Just why?"
+            disabled={loading}
+            label="Your message:"
             value={message}
             fullWidth
             rows={8}
@@ -348,13 +254,13 @@ export const App: React.FC = () => {
           <br />
           <br />
           <Typography>
-            WARNING: Your coins will not be accessible until after the number of
+            WARNING: Coins will not be accessible until after the number of
             blocks have passed. Be responsible!
           </Typography>
           <br />
           <br />
           <Button
-            disabled={loading || walletStatus === 'disconnected'}
+            disabled={loading}
             type="submit"
             variant="contained"
             size="large"
@@ -373,7 +279,7 @@ export const App: React.FC = () => {
         <br />
         {locks.length > 0 && (
           <div>
-            <Typography variant="h4">Your Current Locks</Typography>
+            <Typography variant="h4">Current Locks</Typography>
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>

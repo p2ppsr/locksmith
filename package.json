@@ -21,7 +21,7 @@
   ],
   "devDependencies": {
     "@bsv/cars-cli": "^1.1.4",
-    "@bsv/lars": "^1.4.0"
+    "@bsv/lars": "1.4.0"
   },
   "dependencies": {
     "@bsv/overlay": "^0.1.27",
