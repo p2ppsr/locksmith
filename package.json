@@ -7,7 +7,7 @@
     "lars": "lars",
     "lars:config": "lars config",
     "start": "lars start",
-    "build:backend": "cd backend && tsc -b && npx scrypt-cli compile",
+    "build:backend": "cd hodlocker/backend && tsc -b && npx scrypt-cli compile",
     "build:frontend": "cd frontend && webpack --config webpack.prod.js",
     "build": "npm run build:backend && npm run build:frontend",
     "deploy": "lars deploy now"
@@ -15,12 +15,18 @@
   "keywords": [],
   "author": "",
   "license": "SEE LICENSE IN LICENSE.txt",
+  "workspaces": [
+    "hodlocker/backend",
+    "overlay-services"
+  ],
   "devDependencies": {
     "@bsv/cars-cli": "^1.1.4",
-    "@bsv/lars": "^1.3.2"
+    "@bsv/lars": "1.4.0"
   },
   "dependencies": {
-    "@bsv/sdk": "^1.4.9",
+    "@bsv/overlay": "^0.1.27",
+    "@bsv/sdk": "^1.4.12",
+    "http-proxy": "^1.18.1",
     "mongodb": "^6.15.0",
     "scrypt-ts": "^1.4.5",
     "ts-standard": "^12.0.2"

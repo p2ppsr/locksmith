@@ -18,11 +18,11 @@ LocksmithContract.loadArtifact(locksmithContractJson)
  * Implements a Hodlocker lookup service
  */
 export class HodlockerLookupService implements LookupService {
-  constructor(public storage: HodlockerStorage) {
+  constructor (public storage: HodlockerStorage) {
     console.log('[HodlockerLookupService] Initialized')
   }
 
-  async outputAdded?(
+  async outputAdded? (
     txid: string,
     outputIndex: number,
     outputScript: Script,
@@ -79,7 +79,7 @@ export class HodlockerLookupService implements LookupService {
     }
   }
 
-  async outputSpent?(
+  async outputSpent? (
     txid: string,
     outputIndex: number,
     topic: string
@@ -96,7 +96,7 @@ export class HodlockerLookupService implements LookupService {
     }
   }
 
-  async outputDeleted?(
+  async outputDeleted? (
     txid: string,
     outputIndex: number,
     topic: string
@@ -113,7 +113,7 @@ export class HodlockerLookupService implements LookupService {
     }
   }
 
-  async lookup(
+  async lookup (
     question: LookupQuestion
   ): Promise<LookupAnswer | LookupFormula> {
     console.log(
@@ -121,7 +121,7 @@ export class HodlockerLookupService implements LookupService {
     )
 
     if (!question.query) {
-      console.error(`[HodlockerLookupService] Invalid query received`)
+      console.error('[HodlockerLookupService] Invalid query received')
       throw new Error('A valid query must be provided!')
     }
 
@@ -146,11 +146,11 @@ export class HodlockerLookupService implements LookupService {
     throw new Error(`question.query:${mess}}`)
   }
 
-  async getDocumentation(): Promise<string> {
+  async getDocumentation (): Promise<string> {
     return docs
   }
 
-  async getMetaData(): Promise<{
+  async getMetaData (): Promise<{
     name: string
     shortDescription: string
     iconURL?: string

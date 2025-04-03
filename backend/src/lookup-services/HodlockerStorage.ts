@@ -9,7 +9,7 @@ export class HodlockerStorage {
    * Constructs a new HodlockerStorage instance
    * @param {Db} db - connected MongoDB instance
    */
-  constructor(private readonly db: Db) {
+  constructor (private readonly db: Db) {
     this.records = db.collection<HodlockerRecord>('HodlockerRecords')
   }
 
@@ -17,7 +17,7 @@ export class HodlockerStorage {
    * Store a full Hodlocker token, including serialized BEEF.
    * @param {HodlockerRecord} record - the full Hodlocker token record.
    */
-  async storeRecord(
+  async storeRecord (
     txid: string,
     outputIndex: number,
     address: string,
@@ -47,7 +47,7 @@ export class HodlockerStorage {
    * @param {string} txid - Transaction ID
    * @param {number} outputIndex - Output index of the UTXO
    */
-  async deleteRecord(txid: string, outputIndex: number): Promise<void> {
+  async deleteRecord (txid: string, outputIndex: number): Promise<void> {
     await this.records.deleteOne({ txid, outputIndex })
   }
 
@@ -56,7 +56,7 @@ export class HodlockerStorage {
    * This includes the full token but excludes the BEEF for lightweight retrieval.
    * @returns {Promise<UTXOReference[]>}
    */
-  async findAll(): Promise<UTXOReference[]> {
+  async findAll (): Promise<UTXOReference[]> {
     return await this.records
       .find({})
       .project<UTXOReference>({ txid: 1, outputIndex: 1 })

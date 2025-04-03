@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "strictNullChecks": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "module": "nodenext",
@@ -16,9 +17,7 @@
     },
     "allowSyntheticDefaultImports": true
   },
-  "files": [
-    "src/index.ts" // Explicitly list your main entry point(s)
-  ],
+  "files": ["src/index.ts"],
   "include": ["src/**/*.ts", "types/**/*.ts", "artifacts/**/*.json"],
   "references": [
     {
