@@ -56,7 +56,7 @@ The one constant is `deployment-info.json`.
 
 # Locksmith
 
-## "For those of us who think purposely freezing our money for a cause is cool."
+### "For those of us who think purposely freezing our money for a cause is cool."
 
 ### Locksmith is a Bitcoin SV (BSV) application that lets users lock a small amount of satoshis in a smart contract until a specified future block height. This time-lock is accompanied by a custom message and cannot be redeemed until the blockchain reaches the unlock height.
 
@@ -142,10 +142,11 @@ class Locksmith extends SmartContract {
 ### Unlock funds
 - When the lock expires, the app automatically constructs and broadcasts a redeeming transaction using the `walletClient.createAction()` and the original contract and signature.
 
-## Overlay
+## Overlay 
+[documentation](https://docs.projectbabbage.com/docs/concepts/overlays)
 - Two overlay components handle indexing and filtering:
-- HodlockerLookupService: Tracks active locks in MongoDB.
-- HodlockerTopicManager: Identifies outputs created using the Locksmith contract.
+- LookupService: Tracks active locks in the MongoDB.
+- TopicManager: Identifies outputs created using the Locksmith contract.
 
 ## Directory Structure
 ```css
