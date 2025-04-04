@@ -82,6 +82,7 @@ The one constant is `deployment-info.json`.
 ## Screenshots
 
 The frontend allows you to lock satoshis with a reason and see other users' active locks when it is deployed using CARS (see above).
+![App page](https://github.com/user-attachments/assets/9363c9a5-0535-4805-a376-a0322aeef074)
 
 ## Getting Started
 
@@ -89,7 +90,7 @@ The frontend allows you to lock satoshis with a reason and see other users' acti
 
 - Node.js ≥ v18
 - MongoDB running locally or remotely
-- BRC-100 Wallet integration (get your Metanet wallet here)
+- [BRC-100](https://github.com/bitcoin-sv/BRCs/blob/master/wallet/0100.md) Wallet integration (get your [Metanet Desktop](https://github.com/bitcoin-sv/metanet-desktop/releases) wallet)
 - Docker (optional, but integral if using LARS (see above))
 
 ## Frontend Setup
@@ -109,7 +110,8 @@ Server runs on: http://localhost:8080
 ```
 
 ## Contracts
-### Locksmith (sCrypt)
+### Locksmith 
+Built using: ([sCrypt.io](https://scrypt.io/))
 ```ts
 class Locksmith extends SmartContract {
   @prop() address: Addr
@@ -130,15 +132,15 @@ class Locksmith extends SmartContract {
 ## Lock Flow
 ### Lock funds
 - User inputs satoshis, block duration, and message.
-- Transaction is created using walletClient.createAction().
-- Funds are locked in a smart contract and broadcast via SHIPBroadcaster.
+- Transaction is created using `walletClient.createAction()`.
+- Funds are locked in a smart contract and broadcast via `SHIPBroadcaster()`.
 
 ### Monitor locks
 - The frontend polls the overlay every 10 seconds.
 - Active locks are displayed with their remaining blocks.
 
 ### Unlock funds
-- When the lock expires, the app automatically constructs and broadcasts a redeeming transaction using the original contract and signature.
+- When the lock expires, the app automatically constructs and broadcasts a redeeming transaction using the `walletClient.createAction()` and the original contract and signature.
 
 ## Overlay
 - Two overlay components handle indexing and filtering:
