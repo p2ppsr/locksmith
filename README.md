@@ -96,14 +96,14 @@ The frontend allows you to lock satoshis with a reason and see other users' acti
 ## Frontend Setup
 ```bash
 cd frontend
-npm install
+npm i
 npm run start
 Visit: http://localhost:8090
 ```
 ## Backend Setup
 ```bash
 cd backend
-npm install
+npm i
 npm run build
 npm run start
 Server runs on: http://localhost:8080
@@ -140,7 +140,7 @@ class Locksmith extends SmartContract {
 - Active locks are displayed with their remaining blocks.
 
 ### Unlock funds
-- When the lock expires, the app automatically constructs and broadcasts a redeeming transaction using the `walletClient.createAction()` and the original contract and signature.
+- When the lock expires, the app automatically constructs and broadcasts a redeeming transaction using `walletClient.createAction()` and the original contract and signature.
 
 ## Overlay 
 [documentation](https://docs.projectbabbage.com/docs/concepts/overlays)
