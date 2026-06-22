@@ -20,8 +20,8 @@
     "overlay-services"
   ],
   "devDependencies": {
-    "@bsv/cars-cli": "^1.1.4",
-    "@bsv/lars": "1.4.0"
+    "@p2ppsr/cars-cli": "^1.2.13",
+    "@p2ppsr/lars": "^1.5.11"
   },
   "dependencies": {
     "@bsv/overlay": "^0.1.27",

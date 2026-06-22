@@ -65,8 +65,8 @@ export const lock = async (
   setHodlocker: React.Dispatch<React.SetStateAction<HodlockerToken[]>>,
   hodlocker: HodlockerToken[]
 ): Promise<string | undefined> => {
-  if (lockBlockCount < 0) {
-    throw new Error('Lock block count must be zero or positive')
+  if (lockBlockCount < 1 || lockBlockCount > 10) {
+    throw new Error('Lock block count must be positive and less than 10')
   }
   if (satoshis < 10 || satoshis > 1000) {
     throw new Error(
@@ -75,6 +75,9 @@ export const lock = async (
   }
   if (message.length < 1) {
     throw new Error('Message is required for the lock')
+  }
+  if (message.length > 260) {
+    throw new Error('Message is too long')
   }
 
   const currentBlockHeightObj = await constants.walletClient.getHeight()
